@@ -1,0 +1,84 @@
+"""
+WardenXT Configuration Module
+Centralized configuration management using Pydantic Settings
+"""
+
+from pydantic_settings import BaseSettings
+from pydantic import Field
+from typing import List
+import os
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables"""
+    
+    # Gemini API Configuration
+    gemini_api_key: str = Field(..., env="GEMINI_API_KEY")
+    gemini_model: str = Field(
+        default="gemini-2.0-flash-exp",
+        env="GEMINI_MODEL"
+    )
+    
+    # Application Settings
+    app_env: str = Field(default="development", env="APP_ENV")
+    app_debug: bool = Field(default=True, env="APP_DEBUG")
+    app_host: str = Field(default="0.0.0.0", env="APP_HOST")
+    app_port: int = Field(default=8000, env="APP_PORT")
+    
+    # Database Configuration
+    database_url: str = Field(
+        default="sqlite:///./wardenxt.db",
+        env="DATABASE_URL"
+    )
+    
+    # Vector Store Configuration
+    vector_store_path: str = Field(
+        default="./data/vector_store",
+        env="VECTOR_STORE_PATH"
+    )
+    
+    # Logging
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_file: str = Field(default="./logs/wardenxt.log", env="LOG_FILE")
+    
+    # CORS Settings - simplified for .env parsing
+    cors_origins: str = Field(
+        default='["http://localhost:3000","http://localhost:8000"]',
+        env="CORS_ORIGINS"
+    )
+    
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS origins from JSON string"""
+        import json
+        if isinstance(self.cors_origins, str):
+            return json.loads(self.cors_origins)
+        return self.cors_origins
+    
+    # Feature Flags
+    enable_total_recall: bool = Field(default=True, env="ENABLE_TOTAL_RECALL")
+    enable_visual_debug: bool = Field(default=True, env="ENABLE_VISUAL_DEBUG")
+    enable_agentic_actions: bool = Field(default=True, env="ENABLE_AGENTIC_ACTIONS")
+    enable_change_sentinel: bool = Field(default=False, env="ENABLE_CHANGE_SENTINEL")
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+
+
+# Global settings instance
+settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Dependency injection for FastAPI"""
+    return settings
+
+
+# Validate critical settings on import
+if __name__ != "__main__":
+    if not settings.gemini_api_key or settings.gemini_api_key == "your_api_key_here":
+        raise ValueError(
+            "GEMINI_API_KEY not configured! Please set it in backend/.env"
+        )
