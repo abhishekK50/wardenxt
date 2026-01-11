@@ -1,0 +1,106 @@
+# BMR (Bare Metal Recovery) - MATV Database Incident
+# Based on real production incident requiring full server recovery
+
+incident_id: "INC-2026-0001"
+incident_type: "bmr_recovery"
+severity: "P1"
+title: "MATV Database Server Hardware Failure - BMR Recovery Required"
+
+description: |
+  Mission-critical MATV (Master Archive Transaction Volume) database server 
+  experienced catastrophic hardware failure (disk controller). Complete service 
+  outage requiring Bare Metal Recovery from backup. All transaction processing 
+  blocked for 6 hours during recovery operation.
+
+start_time: "2026-01-15T02:15:00"
+duration_minutes: 345  # 5 hours 45 minutes
+
+services_affected:
+  - "matv-database"
+  - "transaction-processing"
+  - "archive-system"
+  - "reporting-engine"
+  - "data-warehouse"
+
+timeline:
+  - time: "02:15"
+    event: "Database monitoring detects server unresponsive"
+    impact: "All transactions failing, data write operations blocked. Automated alerts fired."
+  
+  - time: "02:20"
+    event: "Server declared dead - hardware failure confirmed"
+    impact: "Complete service outage. Hardware diagnostics indicate disk controller failure."
+  
+  - time: "02:30"
+    event: "Incident escalated to P1 - Decision: BMR recovery required"
+    impact: "War room activated. Last verified backup: 6 hours old. ETA: 4-6 hours for full recovery."
+  
+  - time: "02:45"
+    event: "BMR recovery initiated from latest backup"
+    impact: "Replacement hardware prepared. Recovery process started. All users notified of outage."
+  
+  - time: "04:30"
+    event: "Base OS restored, database software reinstalling"
+    impact: "50% recovery progress. Database binaries being restored. Network configuration verified."
+  
+  - time: "06:15"
+    event: "Database restored, running integrity checks"
+    impact: "90% complete. Full data restoration complete. Integrity validation in progress."
+  
+  - time: "07:45"
+    event: "Integrity checks passed, preparing service restart"
+    impact: "95% complete. Data verified. Preparing to bring service online."
+  
+  - time: "08:00"
+    event: "BMR complete - Service restored and validated"
+    impact: "Service back online. Transaction processing resumed. Monitoring confirmed stable."
+
+root_cause:
+  primary: "Hardware failure - Disk controller malfunction"
+  secondary: "Single point of failure - No redundant controller in place"
+  contributing_factors:
+    - "Server hardware aging (3+ years in production)"
+    - "No proactive hardware monitoring for controller health"
+    - "Backup frequency insufficient (6-hour intervals)"
+
+mitigation_steps:
+  - "Verify backup availability and integrity (Completed: 02:35)"
+  - "Prepare replacement hardware with redundant controllers (Completed: 02:50)"
+  - "Initiate BMR recovery process from backup (Started: 02:45)"
+  - "Monitor recovery progress and validate each phase (Ongoing: 02:45-08:00)"
+  - "Restore operating system and base configuration (Completed: 04:30)"
+  - "Restore database software and binaries (Completed: 05:15)"
+  - "Restore data files from backup (Completed: 06:15)"
+  - "Run comprehensive data integrity checks (Completed: 07:45)"
+  - "Validate database consistency and transaction logs (Completed: 07:50)"
+  - "Resume service and monitor stability (Completed: 08:00)"
+  - "Communicate status to all stakeholders (Ongoing)"
+
+lessons_learned:
+  - "Implement hardware redundancy (RAID controller failover) - Priority: HIGH"
+  - "Reduce backup frequency from 6 hours to 1 hour for critical databases - Priority: HIGH"
+  - "Create and maintain detailed BMR runbook for faster recovery - Priority: MEDIUM"
+  - "Implement database replication for high availability - Priority: HIGH"
+  - "Add proactive hardware health monitoring and alerting - Priority: MEDIUM"
+  - "Conduct quarterly DR (Disaster Recovery) drills - Priority: MEDIUM"
+  - "Document and automate BMR procedures to reduce MTTR - Priority: HIGH"
+
+estimated_cost: "$250,000"
+mttr_actual: "345 minutes (5h 45m)"
+users_impacted: "2,400+ users (all transaction processing)"
+
+# Technical details for data generation
+technical_metadata:
+  backup_size_gb: 850
+  restoration_rate_gbps: 0.8
+  data_integrity_checks: 3
+  transaction_log_size_mb: 12500
+  recovery_point_objective_hours: 6  # Actual RPO achieved
+  recovery_time_objective_hours: 4   # Target RTO (exceeded)
+  
+business_impact:
+  revenue_lost_per_hour: "$43,000"
+  transactions_blocked: 18500
+  sla_breach: true
+  customer_complaints: 127
+  regulatory_reporting_delayed: true
