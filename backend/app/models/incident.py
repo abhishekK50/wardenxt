@@ -68,11 +68,19 @@ class IncidentSummary(BaseModel):
     incident_id: str
     title: str
     severity: Severity
+    incident_type: str = "unknown"  # bmr_recovery, memory_leak, etc.
+    start_time: str = ""
+    end_time: Optional[str] = None
     duration_minutes: int
     services_affected: List[str]
     root_cause: RootCause
     estimated_cost: str
     users_impacted: str
+    business_impact: str = "Unknown"
+    mttr_actual: str = "Unknown"
+    mttr_target: str = "Unknown"
+    detection_time: Optional[str] = None
+    resolution_time: Optional[str] = None
     mitigation_steps: List[str]
     lessons_learned: List[str]
 
@@ -97,6 +105,9 @@ class IncidentListItem(BaseModel):
     title: str
     severity: Severity
     status: IncidentStatus
+    incident_type: str = "unknown"
     start_time: Optional[str] = None
     duration_minutes: Optional[int] = None
     services_affected: List[str]
+    estimated_cost: Optional[str] = None
+    users_impacted: Optional[str] = None
