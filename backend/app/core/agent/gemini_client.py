@@ -5,7 +5,7 @@ Handles all interactions with Gemini 3 API
 
 from google import genai
 from google.genai import types
-from app.config import settings
+from app.config import settings, validate_gemini_key
 from typing import Optional, Dict, List
 import json
 
@@ -42,6 +42,8 @@ When analyzing incidents:
     
     def __init__(self):
         """Initialize Gemini client"""
+        # Validate API key only when client is actually created
+        validate_gemini_key()
         self.client = genai.Client(api_key=settings.gemini_api_key)
         self.model = settings.gemini_model
         

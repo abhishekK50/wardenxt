@@ -76,9 +76,11 @@ def get_settings() -> Settings:
     return settings
 
 
-# Validate critical settings on import
-if __name__ != "__main__":
+# Lazy validation - only check when actually needed
+def validate_gemini_key():
+    """Validate Gemini API key is configured (called when needed, not on import)"""
     if not settings.gemini_api_key or settings.gemini_api_key == "your_api_key_here":
         raise ValueError(
-            "GEMINI_API_KEY not configured! Please set it in backend/.env"
+            "GEMINI_API_KEY not configured! Please set it in backend/.env or environment variables"
         )
+    return True

@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Clock, DollarSign, Users, AlertTriangle, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
+import { useAPI } from '@/lib/hooks/useAPI';
+import { useToast } from '@/app/components/ErrorToast';
+import StatusBadge, { type IncidentStatus } from '@/app/components/StatusBadge';
+import StatusUpdateDropdown from '@/app/components/StatusUpdateDropdown';
+import StatusHistory from '@/app/components/StatusHistory';
 
 
 interface IncidentDetail {
@@ -29,46 +34,66 @@ const severityColors = {
 export default function IncidentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const api = useAPI();
+  const { showToast, ToastContainer } = useToast();
   const [incident, setIncident] = useState<IncidentDetail | null>(null);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [analysis, setAnalysis] = useState<any>(null);
-const [analyzing, setAnalyzing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<IncidentStatus>('DETECTED');
+  const [statusHistoryKey, setStatusHistoryKey] = useState(0);
 
   useEffect(() => {
     if (params.id) {
       fetchIncidentData(params.id as string);
+      fetchCurrentStatus(params.id as string);
     }
   }, [params.id]);
+
+  const fetchCurrentStatus = async (id: string) => {
+    try {
+      const data = await api.getIncidentStatus(id);
+      setCurrentStatus(data.current_status as IncidentStatus);
+    } catch (error) {
+      console.error('Error fetching status:', error);
+      // Don't show toast for status - it's not critical
+    }
+  };
+
+  const handleStatusChange = (newStatus: IncidentStatus) => {
+    setCurrentStatus(newStatus);
+    setStatusHistoryKey(prev => prev + 1);
+  };
 
   const fetchIncidentData = async (id: string) => {
     try {
       setLoading(true);
-      
-      // Fetch summary
-      const summaryRes = await fetch(`http://localhost:8000/api/incidents/${id}/summary`);
-      const summaryData = await summaryRes.json();
-      setIncident(summaryData);
-      
-      // Fetch timeline
-      const timelineRes = await fetch(`http://localhost:8000/api/incidents/${id}/timeline`);
-      const timelineData = await timelineRes.json();
-      setTimeline(timelineData || []);
 
-      const metricsRes = await fetch(`http://localhost:8000/api/incidents/${id}/metrics?limit=50`);
-const metricsData = await metricsRes.json();
-setMetrics(metricsData.map((m: any, i: number) => ({
-  index: i,
-  cpu: m.metrics.cpu_percent,
-  memory: m.metrics.memory_mb,
-  requests: m.metrics.requests_per_sec,
-  errors: m.metrics.error_rate * 100,
-  time: new Date(m.timestamp).toLocaleTimeString()
-})));
-      
+      // Fetch summary
+      const summaryData = await api.getIncidentSummary(id);
+      setIncident(summaryData as any);
+
+      // Fetch timeline
+      const timelineData = await api.getIncidentTimeline(id);
+      setTimeline(Array.isArray(timelineData) ? timelineData : []);
+
+      // Fetch metrics
+      const metricsData = await api.getIncidentMetrics(id, 50);
+      setMetrics(metricsData.map((m: any, i: number) => ({
+        index: i,
+        cpu: m.metrics.cpu_percent,
+        memory: m.metrics.memory_mb,
+        requests: m.metrics.requests_per_sec,
+        errors: m.metrics.error_rate * 100,
+        time: new Date(m.timestamp).toLocaleTimeString()
+      })));
+
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load incident data';
       console.error('Error:', err);
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
@@ -79,11 +104,13 @@ setMetrics(metricsData.map((m: any, i: number) => ({
     if (!incident) return;
     setAnalyzing(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/analysis/${incident.incident_id}/analyze`, { method: 'POST' });
-      const data = await res.json();
+      const data = await api.analyzeIncident(incident.incident_id);
       setAnalysis(data);
+      showToast('Analysis completed successfully', 'success');
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to analyze incident';
       console.error(err);
+      showToast(errorMessage, 'error');
     } finally {
       setAnalyzing(false);
     }
@@ -108,22 +135,51 @@ setMetrics(metricsData.map((m: any, i: number) => ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <>
+      <ToastContainer />
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <button onClick={() => router.push('/incidents')} className="flex items-center gap-2 text-slate-400 hover:text-white mb-4">
             <ArrowLeft className="h-5 w-5" /> Back
           </button>
-          <div className="flex items-center gap-3 mb-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${severityColors[incident.severity as keyof typeof severityColors]}`}>
-              {incident.severity}
-            </span>
-            <span className="text-slate-500">{incident.incident_id}</span>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${severityColors[incident.severity as keyof typeof severityColors]}`}>
+                  {incident.severity}
+                </span>
+                <StatusBadge status={currentStatus} size="md" />
+                <span className="text-slate-500 font-mono text-sm">{incident.incident_id}</span>
+              </div>
+              <h1 className="text-3xl font-bold text-white">{incident.title}</h1>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <StatusUpdateDropdown
+                incidentId={incident.incident_id}
+                currentStatus={currentStatus}
+                onStatusChange={handleStatusChange}
+              />
+              <button 
+                onClick={runAnalysis} 
+                disabled={analyzing} 
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+              >
+                {analyzing ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5 inline mr-2" />
+                    AI Analysis
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-white">{incident.title}</h1>
-          <button onClick={runAnalysis} disabled={analyzing} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-semibold">
-  {analyzing ? <><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Analyzing...</> : <><Sparkles className="h-5 w-5 inline mr-2" />AI Analysis</>}
-</button>
         </div>
       </header>
 
@@ -247,26 +303,39 @@ setMetrics(metricsData.map((m: any, i: number) => ({
               </div>
             </div>
 
-            {/* Metrics Chart */}
-<div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-lg p-6">
-  <h2 className="text-xl font-bold text-white mb-4">System Metrics</h2>
-  <div className="h-[300px]">
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={metrics}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-        <XAxis stroke="#64748b" />
-        <YAxis stroke="#64748b" />
-        <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }} />
-        <Line type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={2} name="CPU %" />
-<Line type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} name="Memory MB" />
-<Line type="monotone" dataKey="requests" stroke="#f59e0b" strokeWidth={2} name="Requests/s" />
-      </LineChart>
-    </ResponsiveContainer>
-  </div>
-</div>
+          </div>
+        </div>
+
+        {/* Status History */}
+        <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <StatusHistory key={statusHistoryKey} incidentId={incident.incident_id} />
+        </div>
+
+        {/* Metrics Chart */}
+        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
+          <h2 className="text-xl font-bold text-white mb-4">System Metrics</h2>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={metrics}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="time" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1e293b', 
+                    border: '1px solid #334155',
+                    borderRadius: '8px'
+                  }} 
+                />
+                <Line type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={2} name="CPU %" />
+                <Line type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} name="Memory MB" />
+                <Line type="monotone" dataKey="requests" stroke="#f59e0b" strokeWidth={2} name="Requests/s" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </main>
     </div>
+    </>
   );
 }
