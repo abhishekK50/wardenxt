@@ -17,15 +17,26 @@ console = Console()
 
 
 def main():
-    """Generate BMR recovery incident dataset"""
+    """Generate incident dataset from scenario file"""
     
-    console.print("\n[bold cyan]WardenXT - BMR Recovery Incident Generator[/bold cyan]\n")
+    console.print("\n[bold cyan]WardenXT - Incident Data Generator[/bold cyan]\n")
     
-    # Load BMR scenario
-    scenario_path = Path(__file__).parent / "scenarios" / "bmr_recovery.yaml"
+    # Get scenario file from command-line argument or use default
+    if len(sys.argv) > 1:
+        scenario_file = sys.argv[1]
+        # Handle relative paths
+        if not scenario_file.startswith('/') and not scenario_file.startswith('E:'):
+            scenario_path = Path(__file__).parent / scenario_file
+        else:
+            scenario_path = Path(scenario_file)
+    else:
+        # Default to BMR recovery scenario
+        scenario_path = Path(__file__).parent / "scenarios" / "bmr_recovery.yaml"
     
     if not scenario_path.exists():
         console.print(f"[red]✗ Scenario file not found: {scenario_path}[/red]")
+        console.print(f"\n[yellow]Usage:[/yellow] python {Path(__file__).name} [scenario_file.yaml]")
+        console.print(f"[yellow]Example:[/yellow] python {Path(__file__).name} scenarios/connection_pool_exhaustion.yaml")
         return False
     
     console.print(f"[green]✓ Loading scenario:[/green] {scenario_path.name}")
@@ -84,7 +95,7 @@ def main():
     
     try:
         dataset.save_to_directory(output_dir)
-        console.print("\n[bold green]✓ BMR Recovery incident dataset generated successfully![/bold green]")
+        console.print(f"\n[bold green]✓ Incident dataset generated successfully![/bold green]")
         
         # Show file locations
         incident_dir = output_dir / scenario.incident_id

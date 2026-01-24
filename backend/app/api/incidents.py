@@ -14,17 +14,21 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 # Initialize data loader
 data_loader = DataLoader()
 
-
-@router.get("/", response_model=List[str])
+@router.get("/")
 async def list_incidents():
-    """List all available incident IDs
-    
-    Returns:
-        List of incident IDs
-    """
+    """List all available incidents with summaries"""
     try:
-        incidents = data_loader.list_incidents()
-        return incidents
+        incident_ids = data_loader.list_incidents()
+        incidents = []
+        
+        for incident_id in incident_ids:
+            try:
+                incident = data_loader.load_incident(incident_id)
+                incidents.append(incident.summary)
+            except Exception as e:
+                continue
+        
+        return {"incidents": incidents}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

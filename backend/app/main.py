@@ -3,6 +3,10 @@ WardenXT FastAPI Application
 Main application entry point
 """
 
+
+import json
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -31,6 +35,36 @@ app.add_middleware(
 # Include routers
 app.include_router(incidents.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
+
+
+
+
+
+@app.get("/api/incidents/")
+async def list_incidents():
+    """List all available incidents with full metadata"""
+    output_dir = Path(__file__).parent.parent / "data-generation" / "output"
+    
+    if not output_dir.exists():
+        return {"incidents": []}
+    
+    incidents = []
+    for incident_dir in output_dir.iterdir():
+        if incident_dir.is_dir():
+            summary_file = incident_dir / "summary.json"
+            if summary_file.exists():
+                with open(summary_file, 'r') as f:
+                    incident_data = json.load(f)
+                    incidents.append(incident_data)
+    
+    # Sort by incident_id descending (newest first)
+    incidents.sort(key=lambda x: x.get('incident_id', ''), reverse=True)
+    
+    return {"incidents": incidents}
+
+
+
+
 
 
 @app.get("/")

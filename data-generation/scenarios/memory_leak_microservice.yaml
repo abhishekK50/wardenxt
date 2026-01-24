@@ -1,0 +1,97 @@
+# Memory Leak in Microservice
+# Unclosed resources causing slow memory growth and eventual OOM
+
+incident_id: "INC-2026-0003"
+incident_type: "memory_leak"
+severity: "P2"
+title: "Memory Leak in Payment Service Leading to GC Thrashing and OOM"
+
+description: |
+  The payment processing microservice exhibited a gradual memory leak over 4 hours,
+  starting with normal operations and progressively degrading until OutOfMemoryError
+  crashes occurred. The root cause was unclosed HTTP client connections when calling
+  external payment gateway APIs. Each transaction leaked approximately 2MB of heap
+  memory. Under normal load (200 txn/hour), this resulted in slow accumulation that
+  eventually triggered full GC cycles, degrading performance before ultimate failure.
+
+start_time: "2025-11-18T10:00:00"
+duration_minutes: 240  # 4 hours
+
+services_affected:
+  - "payment-service"
+  - "payment-gateway-api"
+  - "checkout-service"
+  - "order-fulfillment"
+
+timeline:
+  - time: "10:00"
+    event: "Deployment v2.8.0 completes - payment service operational"
+    impact: "Normal operations. Heap utilization: 24%. All transactions processing normally."
+  
+  - time: "12:00"
+    event: "Heap memory climbing steadily - not yet alarming"
+    impact: "Heap utilization: 41%. No performance degradation yet. Memory growth: 700MB over 2 hours."
+  
+  - time: "12:30"
+    event: "Heap utilization crosses 60% - GC frequency increasing"
+    impact: "Heap utilization: 63%. GC pause times: 95ms. Alert triggered. Engineering team investigating."
+  
+  - time: "13:00"
+    event: "Full GC events consuming 30% of CPU time - severe performance degradation"
+    impact: "Heap utilization: 84%. GC thrashing. Transaction latency: 3500ms (was 200ms). Incident escalated to P2."
+  
+  - time: "13:30"
+    event: "First instance crashes with OutOfMemoryError: Java heap space"
+    impact: "Instance payment-svc-pod-3 crashed. Heap dump captured. Payment capacity reduced 17%."
+  
+  - time: "13:45"
+    event: "Heap dump analysis reveals unclosed HTTP clients"
+    impact: "Eclipse MAT shows 800+ HttpClient instances. Root cause: missing httpClient.close(). Hotfix prepared."
+  
+  - time: "14:00"
+    event: "Hotfix v2.8.1 deployed - all instances stable"
+    impact: "Hotfix deployed. Memory leak stopped. Heap utilization: 26%. All payments processing normally."
+
+root_cause:
+  primary: "Unclosed HTTP client connections in payment gateway integration"
+  secondary: "Missing try-finally blocks for resource cleanup"
+  contributing_factors:
+    - "Recent refactoring (v2.8.0) changed HTTP client from singleton to per-request"
+    - "Code review missed resource management issue"
+    - "No memory leak detection in pre-production testing"
+
+mitigation_steps:
+  - "Captured heap dump from crashing instance for analysis (Completed: 13:30)"
+  - "Eclipse MAT revealed 800+ unclosed HttpClient instances (Completed: 13:45)"
+  - "Emergency code hotfix: Added httpClient.close() in finally block (Completed: 13:50)"
+  - "Deployed hotfix v2.8.1 to all instances (Completed: 14:00)"
+  - "Restarted all payment service pods to clear memory (Completed: 14:00)"
+  - "Added resource leak detection to CI/CD static analysis (Planned)"
+  - "Implemented heap memory alerts at 70% threshold (Completed: 14:15)"
+
+lessons_learned:
+  - "Resource management (HTTP clients, DB connections) requires explicit lifecycle management"
+  - "Code reviews must check for try-finally blocks on closeable resources"
+  - "Memory leak detection tools should run in staging environment"
+  - "Heap memory alerts need lower thresholds (70% not 85%)"
+  - "Static analysis tools (SpotBugs) should enforce resource closure"
+
+estimated_cost: "$1,200,000"
+mttr_actual: "240 minutes (4h)"
+users_impacted: "2,800+ failed transactions"
+
+technical_metadata:
+  heap_memory_max_mb: 4096
+  heap_memory_at_crash_mb: 3950
+  gc_pause_time_max_ms: 2400
+  http_clients_leaked: 800
+  jvm_version: "Java 17"
+  framework: "Spring Boot 3.2"
+  leak_rate_mb_per_hour: 700
+
+business_impact:
+  revenue_lost_per_hour: "$300,000"
+  transactions_blocked: 2800
+  sla_breach: true
+  customer_complaints: 89
+  regulatory_reporting_delayed: false

@@ -1,0 +1,96 @@
+# DNS Propagation Issue
+# TTL misconfiguration causing intermittent geographic failures
+
+incident_id: "INC-2026-0004"
+incident_type: "dns_propagation"
+severity: "P1"
+title: "DNS Propagation Failure After Migration Causing Geographic Outages"
+
+description: |
+  Following a planned migration from legacy infrastructure to AWS, DNS records were
+  updated with incorrect TTL values (5 seconds instead of 300 seconds). This caused
+  DNS resolvers worldwide to cache stale IP addresses intermittently. Users in APAC
+  and EU regions experienced complete service unavailability while NAM users had
+  intermittent failures. The issue manifested as geographically distributed outages
+  with no pattern, making diagnosis extremely difficult.
+
+start_time: "2026-01-05T03:00:00"
+duration_minutes: 90  # 1.5 hours
+
+services_affected:
+  - "global-cdn"
+  - "api-gateway"
+  - "dns-resolver"
+  - "load-balancer"
+
+timeline:
+  - time: "03:00"
+    event: "Migration DNS cutover - A records updated with incorrect 5s TTL"
+    impact: "Silent propagation beginning. All regions initially stable. TTL=5s (should be 300s)."
+  
+  - time: "03:12"
+    event: "Singapore, Tokyo, Sydney users unable to access service"
+    impact: "APAC complete outage. Success rate: 12.4%. PagerDuty alerts from APAC monitoring."
+  
+  - time: "03:20"
+    event: "London, Frankfurt users experiencing intermittent failures"
+    impact: "EU partial outage. Success rate: 62.5%. Pattern recognition: geographic distribution."
+  
+  - time: "03:30"
+    event: "dig queries reveal TTL=5s and stale IP addresses in resolver caches"
+    impact: "Root cause confirmed: DNS TTL misconfiguration. Resolvers caching old IPs (10.0.1.45)."
+  
+  - time: "03:45"
+    event: "TTL updated to 300s - propagation slow due to resolver caching"
+    impact: "Route53 TTL fixed. Waiting for resolver caches to expire. 5-minute propagation window."
+  
+  - time: "04:00"
+    event: "Manual DNS cache flush requested from major public resolvers"
+    impact: "Contacted Google (8.8.8.8) and Cloudflare (1.1.1.1) for cache purge. Legacy infra decommissioned."
+  
+  - time: "04:30"
+    event: "All regions operational - DNS propagation complete globally"
+    impact: "All monitoring green. Success rates: APAC 97.8%, EU 98.1%, NAM 99.3%."
+
+root_cause:
+  primary: "DNS TTL misconfiguration during migration (5s instead of 300s)"
+  secondary: "Route53 health check misconfiguration allowed stale IP resolution"
+  contributing_factors:
+    - "Migration runbook didn't specify TTL preservation"
+    - "Engineer used default 5s TTL thinking it enabled faster rollback"
+    - "No DNS propagation monitoring across multiple regions"
+
+mitigation_steps:
+  - "Identified DNS TTL misconfiguration via dig queries (Completed: 03:30)"
+  - "Updated Route53 A records with correct TTL (300s) (Completed: 03:45)"
+  - "Forced DNS cache flush on major public resolvers (Completed: 04:00)"
+  - "Decommissioned legacy infrastructure to prevent stale IP routing (Completed: 04:00)"
+  - "Updated migration runbook with explicit TTL preservation checklist (Planned)"
+  - "Implemented DNS propagation monitoring across 15 global locations (Planned)"
+
+lessons_learned:
+  - "DNS TTL values are CRITICAL - must be preserved during migrations"
+  - "Migration runbooks need explicit DNS validation checklists"
+  - "Geographic distribution of failures indicates DNS propagation issues"
+  - "DNS monitoring must query multiple public resolvers (8.8.8.8, 1.1.1.1, 208.67.222.222)"
+  - "Legacy infrastructure must be kept running until DNS fully propagates"
+
+estimated_cost: "$2,100,000"
+mttr_actual: "90 minutes (1.5h)"
+users_impacted: "45,000+ failed requests across all regions"
+
+technical_metadata:
+  dns_ttl_incorrect: 5
+  dns_ttl_correct: 300
+  regions_affected: ["APAC", "EU", "NAM"]
+  old_ip_address: "10.0.1.45"
+  new_ip_address: "52.28.134.201"
+  dns_service: "AWS Route53"
+  cdn_service: "CloudFront"
+
+business_impact:
+  revenue_lost_per_hour: "$1,400,000"
+  transactions_blocked: 45000
+  sla_breach: true
+  customer_complaints: 3400
+  regulatory_reporting_delayed: false

@@ -1,0 +1,96 @@
+# Database Connection Pool Exhaustion
+# Gradual degradation leading to sudden failure
+
+incident_id: "INC-2026-0002"
+incident_type: "connection_pool_exhaustion"
+severity: "P1"
+title: "Database Connection Pool Exhaustion Due to Memory Leak"
+
+description: |
+  The application experienced a gradual degradation over 2 hours culminating in a
+  sudden complete failure when the database connection pool was exhausted. A memory
+  leak in the ORM layer prevented proper connection cleanup, causing connections to
+  remain in the pool indefinitely. Under normal load, this wasn't noticeable, but
+  during afternoon peak traffic, new requests couldn't acquire connections, leading
+  to cascading timeouts across all services dependent on the database.
+
+start_time: "2025-12-20T14:00:00"
+duration_minutes: 120  # 2 hours
+
+services_affected:
+  - "api-service"
+  - "postgres-primary"
+  - "load-balancer"
+  - "cache-service"
+
+timeline:
+  - time: "14:00"
+    event: "Afternoon traffic begins ramping up - all systems healthy"
+    impact: "Normal operations. Connection pool utilization: 47%. No alerts."
+  
+  - time: "14:30"
+    event: "Connection pool utilization climbing steadily"
+    impact: "Pool utilization: 76%. Response times increasing from 180ms to 420ms."
+  
+  - time: "14:45"
+    event: "Connection pool 90% utilized - first timeouts occurring"
+    impact: "Pool utilization: 90%. Error rate: 8.5%. Alert triggered. On-call engineer investigating."
+  
+  - time: "15:00"
+    event: "All 100 connections in use - new requests timing out immediately"
+    impact: "Pool 100% exhausted. Error rate: 94.2%. Complete service degradation. Incident escalated to P1."
+  
+  - time: "15:15"
+    event: "Database activity monitoring shows connections not being released"
+    impact: "pg_stat_activity shows 100 connections in 'idle in transaction' state. Root cause identified."
+  
+  - time: "15:30"
+    event: "Application rolled back to v3.2.0 + database connections killed"
+    impact: "Emergency rollback initiated. Idle connections terminated. Pool utilization: 57%."
+  
+  - time: "16:00"
+    event: "All services restored - connection pool utilization normal"
+    impact: "Service fully restored. Pool utilization: 66%. Error rate: 0.3%. Post-mortem scheduled."
+
+root_cause:
+  primary: "Memory leak in ORM layer preventing connection cleanup"
+  secondary: "Connection pool size insufficient for peak load with slow queries"
+  contributing_factors:
+    - "Recent refactoring (v3.2.1) changed connection management"
+    - "No load testing with connection pool monitoring"
+    - "Alert threshold too high (85% instead of 80%)"
+
+mitigation_steps:
+  - "Identified connection leak via database monitoring dashboard (Completed: 15:15)"
+  - "Emergency rollback of application to v3.2.0 (Completed: 15:30)"
+  - "Killed all idle database connections via pg_terminate_backend() (Completed: 15:30)"
+  - "Restarted application servers to clear connection state (Completed: 15:35)"
+  - "Increased connection pool monitoring granularity (Completed: 15:45)"
+  - "Added connection leak detection unit tests to CI/CD (Planned)"
+
+lessons_learned:
+  - "Connection pool monitoring must alert at 80% utilization, not 85%"
+  - "ORM refactoring requires load testing with connection pool monitoring"
+  - "Database connection leaks are silent killers - hard to detect until failure"
+  - "Need automated connection leak detection in pre-production"
+  - "Rollback procedures must be tested quarterly"
+
+estimated_cost: "$780,000"
+mttr_actual: "120 minutes (2h)"
+users_impacted: "12,400+ failed requests"
+
+technical_metadata:
+  connection_pool_max: 100
+  connection_pool_exhausted: true
+  queries_per_second_peak: 1350
+  avg_query_time_degraded_ms: 2800
+  database_version: "PostgreSQL 15.3"
+  application_version_faulty: "v3.2.1"
+  application_version_stable: "v3.2.0"
+
+business_impact:
+  revenue_lost_per_hour: "$390,000"
+  transactions_blocked: 12400
+  sla_breach: true
+  customer_complaints: 89
+  regulatory_reporting_delayed: false

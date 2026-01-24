@@ -1,0 +1,109 @@
+# Kubernetes Pod CrashLoopBackOff
+# Missing environment variable causing immediate startup failures
+
+incident_id: "INC-2026-0005"
+incident_type: "kubernetes_crashloop"
+severity: "P2"
+title: "Kubernetes CrashLoopBackOff Due to Missing Environment Variable"
+
+description: |
+  A routine deployment to production introduced a configuration regression where a
+  critical environment variable (DATABASE_URL) was accidentally removed from the
+  Kubernetes ConfigMap. The application's startup sequence checks for required env
+  vars and exits immediately if any are missing. This caused all new pods to crash
+  within 2 seconds of starting, entering CrashLoopBackOff state. The deployment
+  rolled out progressively (25% → 50% → 100%), and Kubernetes exponential backoff
+  delays (10s → 20s → 40s → 80s → 160s) prevented quick recovery.
+
+start_time: "2025-12-28T16:00:00"
+duration_minutes: 120  # 2 hours
+
+services_affected:
+  - "api-service"
+  - "kubernetes-control-plane"
+  - "load-balancer"
+  - "configmap-store"
+
+timeline:
+  - time: "16:00"
+    event: "Rolling update initiated - Deployment v2.9.1 with updated ConfigMap"
+    impact: "Deployment started. All 12 pods running normally on v2.9.0."
+  
+  - time: "16:15"
+    event: "3 new pods fail to start - immediately crash with missing env var"
+    impact: "25% rollout. 3 pods in CrashLoopBackOff. Service capacity: 75%. Alert triggered."
+  
+  - time: "16:30"
+    event: "6 pods now in CrashLoopBackOff - service severely degraded"
+    impact: "50% rollout. 6 pods crashing. Service capacity: 50%. Incident escalated to P2."
+  
+  - time: "16:45"
+    event: "9 pods in CrashLoopBackOff - service barely functional"
+    impact: "75% rollout. 9 pods crashing. Service capacity: 25%. Root cause identified: missing DATABASE_URL."
+  
+  - time: "17:00"
+    event: "All 12 pods in CrashLoopBackOff - complete service failure"
+    impact: "100% rollout complete. All pods crashing. Service down. Error rate: 100%."
+  
+  - time: "17:15"
+    event: "DATABASE_URL restored to ConfigMap - pods still in backoff"
+    impact: "ConfigMap fixed but pods not restarting due to exponential backoff (160s delay)."
+  
+  - time: "17:25"
+    event: "Force deleting all pods to bypass backoff delay"
+    impact: "Manual pod deletion. Fresh pods created with correct ConfigMap. 8/12 running."
+  
+  - time: "17:45"
+    event: "10/12 pods running successfully"
+    impact: "Service capacity: 83%. Deleting remaining 2 crashloop pods."
+  
+  - time: "18:00"
+    event: "All 12 pods running - service fully restored"
+    impact: "Service fully operational. All pods healthy. Error rate: 0.4%."
+
+root_cause:
+  primary: "Critical environment variable DATABASE_URL removed from ConfigMap during consolidation"
+  secondary: "CI/CD pipeline lacked integration tests validating app startup with production config"
+  contributing_factors:
+    - "ConfigMap refactoring (v2.9.0 → v2.9.1) removed 'legacy' env vars"
+    - "Developer assumed DATABASE_URL was unused"
+    - "Kubernetes rolling update didn't halt on pod failure"
+    - "Exponential backoff delayed recovery by 10+ minutes"
+
+mitigation_steps:
+  - "Identified CrashLoopBackOff via kubectl get pods (Completed: 16:15)"
+  - "Examined pod logs: 'Required env var DATABASE_URL not found' (Completed: 16:30)"
+  - "Compared ConfigMap v2.9.0 vs v2.9.1 - identified missing DATABASE_URL (Completed: 16:45)"
+  - "Updated ConfigMap to restore DATABASE_URL (Completed: 17:15)"
+  - "Deleted all crashing pods to bypass Kubernetes backoff delays (Completed: 17:25)"
+  - "Verified new pods started successfully with restored config (Completed: 17:45)"
+  - "Added startup validation tests to CI/CD pipeline (Planned)"
+  - "Implemented ConfigMap diff review in deployment approval (Planned)"
+
+lessons_learned:
+  - "ConfigMap changes require diff review and approval process"
+  - "CI/CD must include integration tests validating app startup with production configs"
+  - "Kubernetes exponential backoff can significantly extend MTTR - manual intervention needed"
+  - "Rolling update maxUnavailable should halt on pod failure, not continue to 100%"
+  - "Environment variable changes should be tracked in version control with peer review"
+
+estimated_cost: "$680,000"
+mttr_actual: "120 minutes (2h)"
+users_impacted: "8,500+ failed requests"
+
+technical_metadata:
+  kubernetes_version: "1.28"
+  deployment_strategy: "RollingUpdate"
+  max_unavailable: "25%"
+  pods_total: 12
+  pods_crashloop_max: 12
+  backoff_delay_max_seconds: 160
+  configmap_version_faulty: "v2.9.1"
+  configmap_version_stable: "v2.9.0"
+
+business_impact:
+  revenue_lost_per_hour: "$340,000"
+  transactions_blocked: 8500
+  sla_breach: true
+  customer_complaints: 234
+  regulatory_reporting_delayed: false
