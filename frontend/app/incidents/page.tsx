@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { AlertCircle, Clock, DollarSign, Users, TrendingUp, ChevronRight, Activity, Zap } from 'lucide-react';
 import { useAPI } from '@/lib/hooks/useAPI';
 import { useToast } from '@/app/components/ErrorToast';
+import StatusBadge, { IncidentStatus } from '@/app/components/StatusBadge';
 
 interface Incident {
   incident_id: string;
   title: string;
   severity: string;
+  status: IncidentStatus;
   incident_type: string;
   start_time: string;
   duration_minutes: number;
@@ -68,6 +70,7 @@ export default function IncidentsPage() {
       // Map API response to our Incident interface
       setIncidents(response.incidents.map((inc: any) => ({
         ...inc,
+        status: inc.status || 'DETECTED',
         incident_type: inc.incident_type || 'unknown',
         start_time: inc.start_time || '',
         mttr_actual: inc.mttr_actual || 'Unknown',
@@ -161,6 +164,8 @@ export default function IncidentsPage() {
     total: incidents.length,
     p1: incidents.filter(i => i.severity === 'P1').length,
     p2: incidents.filter(i => i.severity === 'P2').length,
+    investigating: incidents.filter(i => ['DETECTED', 'INVESTIGATING'].includes(i.status)).length,
+    resolved: incidents.filter(i => ['RESOLVED', 'CLOSED'].includes(i.status)).length,
     totalCost: incidents.reduce((sum, i) => {
       const cost = parseInt(i.estimated_cost.replace(/[$,]/g, ''));
       return sum + (isNaN(cost) ? 0 : cost);
@@ -197,7 +202,7 @@ export default function IncidentsPage() {
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-500/10 rounded-lg">
@@ -212,12 +217,23 @@ export default function IncidentsPage() {
             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-orange-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-orange-500/10 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-orange-400" />
+                  <Activity className="h-5 w-5 text-orange-400" />
                 </div>
-                <span className="text-slate-400 text-sm font-medium">Critical (P1)</span>
+                <span className="text-slate-400 text-sm font-medium">Investigating</span>
               </div>
-              <p className="text-4xl font-bold text-white">{stats.p1}</p>
-              <p className="text-xs text-slate-500 mt-2">Requires immediate action</p>
+              <p className="text-4xl font-bold text-white">{stats.investigating}</p>
+              <p className="text-xs text-slate-500 mt-2">Active incidents</p>
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-green-500/10 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-green-400" />
+                </div>
+                <span className="text-slate-400 text-sm font-medium">Resolved</span>
+              </div>
+              <p className="text-4xl font-bold text-white">{stats.resolved}</p>
+              <p className="text-xs text-slate-500 mt-2">Completed incidents</p>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-yellow-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-yellow-500/10">
@@ -225,10 +241,10 @@ export default function IncidentsPage() {
                 <div className="p-2 bg-yellow-500/10 rounded-lg">
                   <AlertCircle className="h-5 w-5 text-yellow-400" />
                 </div>
-                <span className="text-slate-400 text-sm font-medium">High (P2)</span>
+                <span className="text-slate-400 text-sm font-medium">P1/P2</span>
               </div>
-              <p className="text-4xl font-bold text-white">{stats.p2}</p>
-              <p className="text-xs text-slate-500 mt-2">High priority resolution</p>
+              <p className="text-4xl font-bold text-white">{stats.p1 + stats.p2}</p>
+              <p className="text-xs text-slate-500 mt-2">Critical priority</p>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-red-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/10">
@@ -270,10 +286,11 @@ export default function IncidentsPage() {
                   <div className={`bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-blue-500/50 hover:bg-slate-900/70 transition-all duration-300 ${severityGlow[incident.severity as keyof typeof severityGlow]} hover:scale-[1.01]`}>
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold border ${severityColors[incident.severity as keyof typeof severityColors]}`}>
                             {incident.severity}
                           </span>
+                          <StatusBadge status={incident.status} size="sm" showIcon={true} />
                           <span className="text-slate-500 text-sm font-mono">
                             {incident.incident_id}
                           </span>

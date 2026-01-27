@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 from app.core.logging import get_logger
+from app.db.status_store import get_status_store
 
 from app.models.incident import (
     Incident, IncidentSummary, LogEntry, MetricPoint,
@@ -21,7 +22,7 @@ class DataLoader:
     
     def __init__(self, data_directory: Optional[str] = None):
         """Initialize data loader
-        
+
         Args:
             data_directory: Path to generated data directory (absolute or relative)
         """
@@ -32,16 +33,17 @@ class DataLoader:
             data_directory = project_root / "data-generation" / "output"
         else:
             data_directory = Path(data_directory)
-        
+
         self.data_dir = Path(data_directory).resolve()  # Convert to absolute path
         self.logger = get_logger(__name__)
-        
+        self.status_store = get_status_store()
+
         self.logger.debug("data_loader_init", extra_fields={"data_directory": str(self.data_dir)})
-        
+
         if not self.data_dir.exists():
             self.logger.error("data_directory_not_found", extra_fields={"path": str(self.data_dir)})
             raise ValueError(f"Data directory not found: {self.data_dir}")
-        
+
         self.logger.info("data_loader_initialized", extra_fields={"path": str(self.data_dir)})
     
     def list_incidents(self) -> List[str]:
@@ -121,32 +123,45 @@ class DataLoader:
         
         # Load summary
         summary = self._load_summary(incident_dir)
-        
+
         # Load logs
         logs = self._load_logs(incident_dir)
-        
+
         # Load metrics
         metrics = self._load_metrics(incident_dir)
-        
+
         # Load timeline
         timeline = self._load_timeline(incident_dir)
-        
+
+        # Get current status from status store
+        current_status = self.status_store.get_current_status(incident_id)
+        if current_status is None:
+            # Initialize with DETECTED if no status exists
+            self.status_store.initialize_status(incident_id, IncidentStatus.DETECTED)
+            current_status = IncidentStatus.DETECTED
+
+        # Get status history
+        status_history = self.status_store.get_status_history(incident_id)
+        summary.status = current_status
+        summary.status_history = status_history
+
         self.logger.info(
             "incident_loaded",
             extra_fields={
                 "incident_id": incident_id,
+                "status": current_status.value,
                 "logs_count": len(logs),
                 "metrics_count": len(metrics),
                 "timeline_events": len(timeline)
             }
         )
-        
+
         return Incident(
             summary=summary,
             logs=logs,
             metrics=metrics,
             timeline=timeline,
-            status=IncidentStatus.DETECTED
+            status=current_status
         )
     
     def _load_summary(self, incident_dir: Path) -> IncidentSummary:
