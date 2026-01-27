@@ -101,12 +101,35 @@ export default function IncidentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent mb-4"></div>
-          <p className="text-slate-400 text-lg">Loading incidents...</p>
+      <>
+        <ToastContainer />
+        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+          <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="max-w-7xl mx-auto px-6 py-6">
+              <div className="h-8 bg-slate-800 rounded w-48 animate-pulse"></div>
+            </div>
+          </header>
+          <main className="max-w-7xl mx-auto px-6 py-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 animate-pulse">
+                  <div className="h-4 bg-slate-800 rounded w-1/2 mb-2"></div>
+                  <div className="h-8 bg-slate-800 rounded w-3/4"></div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 animate-pulse">
+                  <div className="h-6 bg-slate-800 rounded w-1/3 mb-4"></div>
+                  <div className="h-4 bg-slate-800 rounded w-full mb-2"></div>
+                  <div className="h-4 bg-slate-800 rounded w-5/6"></div>
+                </div>
+              ))}
+            </div>
+          </main>
         </div>
-      </div>
+      </>
     );
   }
 

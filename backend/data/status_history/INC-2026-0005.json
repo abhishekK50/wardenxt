@@ -1,0 +1,13 @@
+{
+  "incident_id": "INC-2026-0005",
+  "history": [
+    {
+      "timestamp": "2026-01-24T18:27:01.638314Z",
+      "from_status": "DETECTED",
+      "to_status": "DETECTED",
+      "updated_by": "System",
+      "notes": "Initial status"
+    }
+  ],
+  "last_updated": "2026-01-24T18:27:01.638314Z"
+}

@@ -1,0 +1,48 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Authentication & Security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+slowapi
+
+# Gemini AI
+google-genai
+
+# Database
+sqlalchemy
+alembic
+aiosqlite
+asyncpg
+# psycopg2-binary  <-- Keep commented out for now, add back if needed
+
+# Vector Store
+chromadb
+
+# Data Processing
+pandas
+numpy
+python-dateutil
+
+# API & WebSocket
+websockets
+httpx
+
+# Utilities
+python-dotenv
+pyyaml
+rich
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+
+# Development
+black
+ruff
+mypy

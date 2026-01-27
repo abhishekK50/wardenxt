@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from typing import Optional, List, Dict
 
+from app.core.logging import get_logger
+
 from app.models.incident import (
     Incident, IncidentSummary, LogEntry, MetricPoint,
     TimelineEvent, RootCause, IncidentStatus, Severity
@@ -32,13 +34,15 @@ class DataLoader:
             data_directory = Path(data_directory)
         
         self.data_dir = Path(data_directory).resolve()  # Convert to absolute path
+        self.logger = get_logger(__name__)
         
-        print(f"[DataLoader] Looking for data in: {self.data_dir}")
+        self.logger.debug("data_loader_init", extra_fields={"data_directory": str(self.data_dir)})
         
         if not self.data_dir.exists():
+            self.logger.error("data_directory_not_found", extra_fields={"path": str(self.data_dir)})
             raise ValueError(f"Data directory not found: {self.data_dir}")
         
-        print(f"[DataLoader] Data directory exists: {self.data_dir}")
+        self.logger.info("data_loader_initialized", extra_fields={"path": str(self.data_dir)})
     
     def list_incidents(self) -> List[str]:
         """List all available incident IDs
@@ -52,30 +56,68 @@ class DataLoader:
                 if d.is_dir() and (d / "summary.json").exists()
             ]
             incident_dirs = sorted(incident_dirs)
-            print(f"[DataLoader] Found {len(incident_dirs)} incidents: {incident_dirs}")
+            self.logger.info("incidents_listed", extra_fields={"count": len(incident_dirs), "incidents": incident_dirs})
             return incident_dirs
         except Exception as e:
-            print(f"[DataLoader] Error listing incidents: {e}")
+            self.logger.error("list_incidents_failed", extra_fields={"error": str(e)}, exc_info=True)
             return []
     
+    def _validate_incident_id(self, incident_id: str) -> str:
+        """Validate and sanitize incident ID to prevent path traversal
+
+        Args:
+            incident_id: Incident identifier to validate
+
+        Returns:
+            Sanitized incident ID
+
+        Raises:
+            ValueError: If incident ID contains invalid characters
+        """
+        # Remove any path separators and relative path components
+        sanitized = incident_id.replace("/", "").replace("\\", "").replace("..", "")
+
+        # Only allow alphanumeric, dash, underscore
+        if not sanitized or not all(c.isalnum() or c in "-_" for c in sanitized):
+            raise ValueError(f"Invalid incident ID format: {incident_id}")
+
+        if sanitized != incident_id:
+            self.logger.warning(
+                "incident_id_sanitized",
+                extra_fields={"original": incident_id, "sanitized": sanitized}
+            )
+
+        return sanitized
+
     def load_incident(self, incident_id: str) -> Incident:
         """Load complete incident data
-        
+
         Args:
             incident_id: Incident identifier
-            
+
         Returns:
             Complete Incident object
-            
+
         Raises:
-            ValueError: If incident not found
+            ValueError: If incident not found or invalid ID
         """
+        # Validate incident ID to prevent path traversal
+        incident_id = self._validate_incident_id(incident_id)
+
         incident_dir = self.data_dir / incident_id
-        
+
+        # Ensure the resolved path is within data_dir (additional safety check)
+        try:
+            incident_dir = incident_dir.resolve()
+            if not str(incident_dir).startswith(str(self.data_dir)):
+                raise ValueError(f"Invalid incident path: {incident_id}")
+        except Exception:
+            raise ValueError(f"Invalid incident ID: {incident_id}")
+
         if not incident_dir.exists():
             raise ValueError(f"Incident not found: {incident_id}")
         
-        print(f"[DataLoader] Loading incident: {incident_id}")
+        self.logger.debug("loading_incident", extra_fields={"incident_id": incident_id})
         
         # Load summary
         summary = self._load_summary(incident_dir)
@@ -89,7 +131,15 @@ class DataLoader:
         # Load timeline
         timeline = self._load_timeline(incident_dir)
         
-        print(f"[DataLoader] Loaded {len(logs)} logs, {len(metrics)} metrics, {len(timeline)} timeline events")
+        self.logger.info(
+            "incident_loaded",
+            extra_fields={
+                "incident_id": incident_id,
+                "logs_count": len(logs),
+                "metrics_count": len(metrics),
+                "timeline_events": len(timeline)
+            }
+        )
         
         return Incident(
             summary=summary,
@@ -162,7 +212,7 @@ class DataLoader:
         logs = []
         
         if not logs_file.exists():
-            print(f"[DataLoader] Warning: logs.jsonl not found in {incident_dir}")
+            self.logger.warning("logs_file_not_found", extra_fields={"path": str(logs_file)})
             return logs
         
         with open(logs_file, 'r') as f:
@@ -172,7 +222,7 @@ class DataLoader:
                         data = json.loads(line)
                         logs.append(LogEntry(**data))
                     except Exception as e:
-                        print(f"[DataLoader] Error parsing log entry: {e}")
+                        self.logger.warning("log_parse_error", extra_fields={"error": str(e), "line": line[:100]})
                         continue
         
         return logs
@@ -190,7 +240,7 @@ class DataLoader:
         metrics = []
         
         if not metrics_file.exists():
-            print(f"[DataLoader] Warning: metrics.jsonl not found in {incident_dir}")
+            self.logger.warning("metrics_file_not_found", extra_fields={"path": str(metrics_file)})
             return metrics
         
         with open(metrics_file, 'r') as f:
@@ -200,7 +250,7 @@ class DataLoader:
                         data = json.loads(line)
                         metrics.append(MetricPoint(**data))
                     except Exception as e:
-                        print(f"[DataLoader] Error parsing metric: {e}")
+                        self.logger.warning("metric_parse_error", extra_fields={"error": str(e), "line": line[:100]})
                         continue
         
         return metrics
@@ -215,9 +265,12 @@ class DataLoader:
             List of TimelineEvent objects
         """
         timeline_file = incident_dir / "timeline.json"
-        
+
         if not timeline_file.exists():
-            print(f"[DataLoader] Warning: timeline.json not found in {incident_dir}")
+            self.logger.warning(
+                "timeline_file_not_found",
+                extra_fields={"incident_dir": str(incident_dir)}
+            )
             return []
         
         with open(timeline_file, 'r') as f:

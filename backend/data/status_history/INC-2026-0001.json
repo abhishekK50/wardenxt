@@ -1,0 +1,20 @@
+{
+  "incident_id": "INC-2026-0001",
+  "history": [
+    {
+      "timestamp": "2026-01-24T18:09:16.945413Z",
+      "from_status": "DETECTED",
+      "to_status": "CLOSED",
+      "updated_by": "User",
+      "notes": "Status changed from INVESTIGATING to CLOSED"
+    },
+    {
+      "timestamp": "2026-01-24T18:09:20.076278Z",
+      "from_status": "CLOSED",
+      "to_status": "INVESTIGATING",
+      "updated_by": "User",
+      "notes": "Status changed from CLOSED to INVESTIGATING"
+    }
+  ],
+  "last_updated": "2026-01-24T18:09:20.076278Z"
+}

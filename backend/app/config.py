@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     log_file: str = Field(default="./logs/wardenxt.log", env="LOG_FILE")
     
+    # Authentication & Security
+    jwt_secret_key: str = Field(
+        default="change-this-secret-key-in-production-use-openssl-rand-hex-32",
+        env="JWT_SECRET_KEY"
+    )
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expire_minutes: int = Field(default=1440, env="JWT_EXPIRE_MINUTES")  # 24 hours
+    
+    # Rate Limiting
+    rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
+    rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
+    
     # CORS Settings - simplified for .env parsing
     cors_origins: str = Field(
         default='["http://localhost:3000","http://localhost:8000"]',
@@ -83,4 +95,41 @@ def validate_gemini_key():
         raise ValueError(
             "GEMINI_API_KEY not configured! Please set it in backend/.env or environment variables"
         )
+    return True
+
+
+def validate_security_settings():
+    """Validate critical security settings on startup"""
+    errors = []
+
+    # Check JWT secret key in production
+    if settings.app_env == "production":
+        if settings.jwt_secret_key == "change-this-secret-key-in-production-use-openssl-rand-hex-32":
+            errors.append(
+                "CRITICAL: JWT_SECRET_KEY is using the default value in production! "
+                "Generate a secure key with: openssl rand -hex 32"
+            )
+
+        if settings.app_debug:
+            errors.append(
+                "WARNING: APP_DEBUG is True in production environment! "
+                "Set APP_DEBUG=false in production"
+            )
+
+    # Check JWT secret key length
+    if len(settings.jwt_secret_key) < 32:
+        errors.append(
+            "WARNING: JWT_SECRET_KEY is too short (< 32 characters). "
+            "Use a longer secret for better security."
+        )
+
+    if errors:
+        error_message = "\n".join(errors)
+        if settings.app_env == "production":
+            raise ValueError(f"Security validation failed:\n{error_message}")
+        else:
+            # In development, log warnings but don't fail
+            import warnings
+            warnings.warn(f"Security warnings:\n{error_message}", UserWarning)
+
     return True

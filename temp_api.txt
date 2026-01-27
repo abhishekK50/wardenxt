@@ -1,0 +1,227 @@
+/**
+ * API Client for WardenXT Backend
+ * Handles all communication with FastAPI backend
+ */
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export interface Incident {
+  summary: {
+    incident_id: string;
+    title: string;
+    severity: 'P0' | 'P1' | 'P2' | 'P3';
+    duration_minutes: number;
+    services_affected: string[];
+    root_cause: {
+      primary: string;
+      secondary?: string;
+      contributing_factors?: string[];
+    };
+    estimated_cost: string;
+    users_impacted: string;
+    mitigation_steps: string[];
+    lessons_learned: string[];
+  };
+  logs: Array<{
+    timestamp: string;
+    level: string;
+    service: string;
+    host: string;
+    message: string;
+  }>;
+  metrics: Array<{
+    timestamp: string;
+    service: string;
+    host: string;
+    metrics: Record<string, number>;
+  }>;
+  timeline: Array<{
+    time: string;
+    event: string;
+    impact: string;
+    type: string;
+  }>;
+  status: string;
+}
+
+export interface IncidentBrief {
+  incident_id: string;
+  executive_summary: string;
+  root_cause: {
+    primary_cause: string;
+    confidence: number;
+    confidence_level: string;
+    evidence: string[];
+    contributing_factors?: string[];
+  };
+  impact: {
+    users_affected: string;
+    estimated_cost: string;
+    services_impacted: string[];
+    severity_justification: string;
+  };
+  recommended_actions: Array<{
+    priority: string;
+    action: string;
+    estimated_time: string;
+    risk_level: string;
+    command?: string;
+  }>;
+  timeline_summary: string;
+  generated_at: string;
+  analysis_status: string;
+}
+
+export interface AgentStatus {
+  status: string;
+  current_task: string | null;
+  progress: number;
+  logs_analyzed: number;
+  metrics_analyzed: number;
+  insights_generated: number;
+}
+
+export interface StatusUpdate {
+  timestamp: string;
+  from_status: string;
+  to_status: string;
+  updated_by: string;
+  notes?: string;
+}
+
+export interface IncidentStatus {
+  incident_id: string;
+  current_status: string;
+  status_history: StatusUpdate[];
+  last_updated: string;
+}
+
+export interface StatusUpdateRequest {
+  new_status: string;
+  notes?: string;
+  updated_by: string;
+}
+
+class APIClient {
+  private baseURL: string;
+
+  constructor(baseURL: string = API_BASE_URL) {
+    this.baseURL = baseURL;
+  }
+
+  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const url = `${this.baseURL}${endpoint}`;
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(error.detail || `HTTP ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`API Error [${endpoint}]:`, error);
+      throw error;
+    }
+  }
+
+  // Incidents API
+  async listIncidents(): Promise<{ incidents: Incident['summary'][] }> {
+    return this.request<{ incidents: Incident['summary'][] }>('/api/incidents/');
+  }
+
+  async getIncident(incidentId: string): Promise<Incident> {
+    return this.request<Incident>(`/api/incidents/${incidentId}`);
+  }
+
+  async getIncidentSummary(incidentId: string): Promise<Incident['summary']> {
+    return this.request<Incident['summary']>(`/api/incidents/${incidentId}/summary`);
+  }
+
+  async getIncidentLogs(incidentId: string, level?: string, limit: number = 100) {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (level) params.append('level', level);
+    
+    return this.request<Incident['logs']>(`/api/incidents/${incidentId}/logs?${params}`);
+  }
+
+  async getIncidentMetrics(incidentId: string, limit: number = 100) {
+    return this.request<Incident['metrics']>(
+      `/api/incidents/${incidentId}/metrics?limit=${limit}`
+    );
+  }
+
+  async getIncidentTimeline(incidentId: string) {
+    return this.request<Incident['timeline']>(`/api/incidents/${incidentId}/timeline`);
+  }
+
+  // Analysis API
+  async analyzeIncident(incidentId: string, maxLogs: number = 1000): Promise<IncidentBrief> {
+    return this.request<IncidentBrief>(`/api/analysis/${incidentId}/analyze`, {
+      method: 'POST',
+      body: JSON.stringify({
+        incident_id: incidentId,
+        include_logs: true,
+        include_metrics: true,
+        include_timeline: true,
+        max_logs: maxLogs,
+      }),
+    });
+  }
+
+  async getCachedBrief(incidentId: string): Promise<IncidentBrief> {
+    return this.request<IncidentBrief>(`/api/analysis/${incidentId}/brief`);
+  }
+
+  async getAgentStatus(): Promise<AgentStatus> {
+    return this.request<AgentStatus>('/api/analysis/agent/status');
+  }
+
+  async getIncidentAgentStatus(incidentId: string): Promise<AgentStatus> {
+    return this.request<AgentStatus>(`/api/analysis/${incidentId}/agent/status`);
+  }
+
+  async clearCachedBrief(incidentId: string): Promise<{ message: string; incident_id: string }> {
+    return this.request(`/api/analysis/${incidentId}/brief`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Status API
+  async getIncidentStatus(incidentId: string): Promise<IncidentStatus> {
+    return this.request<IncidentStatus>(`/api/status/${incidentId}`);
+  }
+
+  async updateIncidentStatus(
+    incidentId: string,
+    request: StatusUpdateRequest
+  ): Promise<{ success: boolean; incident_id: string; previous_status: string; new_status: string; update: StatusUpdate }> {
+    return this.request(`/api/status/${incidentId}/update`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async getStatusHistory(incidentId: string): Promise<{ incident_id: string; status_changes: number; history: StatusUpdate[] }> {
+    return this.request(`/api/status/${incidentId}/history`);
+  }
+
+  // Health check
+  async healthCheck(): Promise<{ status: string; gemini_model: string; environment: string }> {
+    return this.request('/health');
+  }
+}
+
+// Export singleton instance
+export const api = new APIClient();
+
+// Export class for testing
+export default APIClient;

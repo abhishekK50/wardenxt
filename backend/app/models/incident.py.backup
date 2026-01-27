@@ -1,6 +1,6 @@
 """
-Incident Data Models - Enhanced with Status Tracking
-Pydantic models for incident data structures with lifecycle management
+Incident Data Models
+Pydantic models for incident data structures
 """
 
 from pydantic import BaseModel, Field
@@ -19,22 +19,11 @@ class Severity(str, Enum):
 
 class IncidentStatus(str, Enum):
     """Incident lifecycle status"""
-    DETECTED = "DETECTED"          # Initial detection
-    INVESTIGATING = "INVESTIGATING" # Team investigating
-    IDENTIFIED = "IDENTIFIED"       # Root cause identified
-    MITIGATING = "MITIGATING"      # Mitigation in progress
-    MONITORING = "MONITORING"       # Issue resolved, monitoring
-    RESOLVED = "RESOLVED"           # Fully resolved
-    CLOSED = "CLOSED"               # Incident closed
-
-
-class StatusUpdate(BaseModel):
-    """Status update record"""
-    timestamp: str
-    from_status: IncidentStatus
-    to_status: IncidentStatus
-    updated_by: str = "System"
-    notes: Optional[str] = None
+    DETECTED = "DETECTED"
+    ANALYZING = "ANALYZING"
+    MITIGATING = "MITIGATING"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
 
 
 class LogEntry(BaseModel):
@@ -79,8 +68,7 @@ class IncidentSummary(BaseModel):
     incident_id: str
     title: str
     severity: Severity
-    status: IncidentStatus = IncidentStatus.DETECTED
-    incident_type: str = "unknown"
+    incident_type: str = "unknown"  # bmr_recovery, memory_leak, etc.
     start_time: str = ""
     end_time: Optional[str] = None
     duration_minutes: int
@@ -95,7 +83,6 @@ class IncidentSummary(BaseModel):
     resolution_time: Optional[str] = None
     mitigation_steps: List[str]
     lessons_learned: List[str]
-    status_history: List[StatusUpdate] = []
 
 
 class Incident(BaseModel):
@@ -124,10 +111,3 @@ class IncidentListItem(BaseModel):
     services_affected: List[str]
     estimated_cost: Optional[str] = None
     users_impacted: Optional[str] = None
-
-
-class StatusUpdateRequest(BaseModel):
-    """Request to update incident status"""
-    new_status: IncidentStatus
-    notes: Optional[str] = None
-    updated_by: str = "User"

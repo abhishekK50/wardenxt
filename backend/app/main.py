@@ -7,12 +7,24 @@ Main application entry point
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+import sqlalchemy as sa
 
-from app.config import settings
-from app.api import incidents, analysis
+from app.config import settings, validate_security_settings
+from app.api import incidents, analysis, status, auth
+from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.core.logging import setup_logging, get_logger
+from app.db.database import init_db
+
+# Setup logging
+logger = setup_logging()
+logger.info("application_started", extra_fields={"environment": settings.app_env}) 
 
 # Create FastAPI app
 app = FastAPI(
@@ -23,6 +35,13 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Initialize rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Security headers middleware (add first)
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -32,10 +51,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and validate configuration on application startup"""
+    try:
+        # Validate security settings first
+        validate_security_settings()
+        logger.info("security_settings_validated")
+
+        # Initialize database
+        init_db()
+        logger.info("database_initialized")
+    except ValueError as e:
+        logger.error("configuration_validation_failed", extra_fields={"error": str(e)})
+        raise
+    except Exception as e:
+        logger.error("startup_failed", extra_fields={"error": str(e)})
+        raise
+
 # Include routers
+app.include_router(auth.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
-
+app.include_router(status.router, prefix="/api")
 
 
 
@@ -91,16 +130,40 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    from app.db.database import sync_engine
+    
+    # Check database connection
+    db_status = "healthy"
+    try:
+        with sync_engine.connect() as conn:
+            conn.execute(sa.text("SELECT 1"))
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+        logger.error("health_check_db_failed", extra_fields={"error": str(e)})
+    
     return {
-        "status": "healthy",
+        "status": "healthy" if db_status == "healthy" else "degraded",
+        "database": db_status,
         "gemini_model": settings.gemini_model,
-        "environment": settings.app_env
+        "environment": settings.app_env,
+        "version": "1.0.0"
     }
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler"""
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler with logging"""
+    logger.error(
+        "unhandled_exception",
+        extra_fields={
+            "path": request.url.path,
+            "method": request.method,
+            "error": str(exc),
+            "error_type": type(exc).__name__
+        },
+        exc_info=True
+    )
+    
     return JSONResponse(
         status_code=500,
         content={

@@ -7,6 +7,8 @@ import json
 from typing import Dict, List, Optional
 from datetime import datetime
 
+from app.core.logging import get_logger
+
 from app.models.incident import Incident, LogEntry, MetricPoint
 from app.models.analysis import (
     IncidentBrief, RootCauseAnalysis, MitigationAction,
@@ -14,6 +16,7 @@ from app.models.analysis import (
     ConfidenceLevel
 )
 from .gemini_client import GeminiClient
+from .status_stream import get_status_stream
 
 
 class IncidentAnalyzer:
@@ -22,10 +25,13 @@ class IncidentAnalyzer:
     def __init__(self):
         """Initialize analyzer with Gemini client"""
         self.gemini = GeminiClient()
+        self.status_stream = get_status_stream()
         self.agent_status = AgentStatus(
             status="IDLE",
             progress=0.0
         )
+        self.reasoning_steps: List[str] = []
+        self.logger = get_logger(__name__)
     
     async def analyze_incident(
         self,
@@ -42,23 +48,38 @@ class IncidentAnalyzer:
             AI-generated incident brief
         """
         
+        # Reset reasoning steps
+        self.reasoning_steps = []
+        
         # Update agent status
         self.agent_status.status = "ANALYZING"
         self.agent_status.current_task = "Loading incident data"
         self.agent_status.progress = 0.1
+        await self._emit_status_update(incident.summary.incident_id, "Loading incident data...")
         
         # Prepare data for Gemini
         summary_dict = incident.summary.model_dump()
+        await self._emit_status_update(incident.summary.incident_id, f"Preparing data for analysis...")
         
         # Sample logs intelligently (prioritize errors)
         logs_dict = self._prepare_logs(incident.logs, max_logs)
         self.agent_status.logs_analyzed = len(logs_dict)
         self.agent_status.progress = 0.3
+        await self._emit_status_update(
+            incident.summary.incident_id,
+            f"Analyzed {len(logs_dict)} log entries",
+            reasoning_step=f"Found {len([l for l in logs_dict if l.get('level') in ['ERROR', 'CRITICAL']])} critical errors"
+        )
         
         # Sample metrics
         metrics_dict = self._prepare_metrics(incident.metrics)
         self.agent_status.metrics_analyzed = len(metrics_dict)
         self.agent_status.progress = 0.5
+        await self._emit_status_update(
+            incident.summary.incident_id,
+            f"Analyzed {len(metrics_dict)} metric points",
+            reasoning_step="Correlating metrics with log patterns"
+        )
         
         # Timeline
         timeline_dict = [event.model_dump() for event in incident.timeline]
@@ -66,6 +87,11 @@ class IncidentAnalyzer:
         # Generate brief using Gemini
         self.agent_status.current_task = "Analyzing with Gemini 3"
         self.agent_status.progress = 0.6
+        await self._emit_status_update(
+            incident.summary.incident_id,
+            "Sending data to Gemini 3 for analysis",
+            reasoning_step="Using Total Recall context (1M+ tokens) for comprehensive analysis"
+        )
         
         try:
             brief_text = self.gemini.generate_incident_brief(
@@ -75,22 +101,49 @@ class IncidentAnalyzer:
                 timeline=timeline_dict
             )
             
+            await self._emit_status_update(
+                incident.summary.incident_id,
+                "Received analysis from Gemini 3",
+                reasoning_step="AI identified root cause with evidence"
+            )
+            
             # Parse AI response
             self.agent_status.current_task = "Parsing analysis results"
             self.agent_status.progress = 0.9
+            await self._emit_status_update(incident.summary.incident_id, "Structuring analysis results")
             
             brief = self._parse_brief_response(brief_text, incident.summary.incident_id)
+            
+            # Add final reasoning step
+            self.reasoning_steps.append(f"Root cause identified: {brief.root_cause.primary_cause} (confidence: {brief.root_cause.confidence:.0%})")
+            self.reasoning_steps.append(f"Generated {len(brief.recommended_actions)} mitigation actions")
             
             self.agent_status.status = "IDLE"
             self.agent_status.current_task = None
             self.agent_status.progress = 1.0
             self.agent_status.insights_generated += 1
             
+            await self._emit_status_update(
+                incident.summary.incident_id,
+                "Analysis complete",
+                progress=1.0,
+                reasoning_step="Analysis completed successfully"
+            )
+            
             return brief
             
         except Exception as e:
             self.agent_status.status = "IDLE"
             self.agent_status.current_task = None
+            self.logger.error(
+                "analysis_failed",
+                extra_fields={
+                    "incident_id": incident.summary.incident_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                },
+                exc_info=True
+            )
             raise RuntimeError(f"Analysis failed: {str(e)}")
     
     def _prepare_logs(self, logs: List[LogEntry], max_logs: int) -> List[Dict]:
@@ -285,6 +338,34 @@ class IncidentAnalyzer:
             timeline_summary=text,
             generated_at=datetime.utcnow().isoformat() + 'Z',
             analysis_status=AnalysisStatus.COMPLETED
+        )
+    
+    async def _emit_status_update(
+        self,
+        incident_id: str,
+        task: str,
+        progress: Optional[float] = None,
+        reasoning_step: Optional[str] = None
+    ):
+        """Emit status update to stream
+        
+        Args:
+            incident_id: Incident identifier
+            task: Task description
+            progress: Optional progress override
+            reasoning_step: Optional reasoning step to add
+        """
+        if reasoning_step:
+            self.reasoning_steps.append(reasoning_step)
+        
+        await self.status_stream.update_status(
+            incident_id=incident_id,
+            status=self.agent_status.status,
+            current_task=task,
+            progress=progress if progress is not None else self.agent_status.progress,
+            logs_analyzed=self.agent_status.logs_analyzed,
+            metrics_analyzed=self.agent_status.metrics_analyzed,
+            reasoning_steps=self.reasoning_steps.copy()
         )
     
     def get_agent_status(self) -> AgentStatus:

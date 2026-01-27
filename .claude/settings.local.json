@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash([ -f wardenxt.db ])",
+      "Bash(python -c:*)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(python test_fixes.py:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:gemini3.devpost.com)",
+      "Read(//e/Projects/**)"
+    ]
+  }
+}
