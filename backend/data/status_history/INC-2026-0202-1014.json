@@ -1,0 +1,27 @@
+{
+  "incident_id": "INC-2026-0202-1014",
+  "history": [
+    {
+      "timestamp": "2026-02-02T10:26:58.185010Z",
+      "from_status": "DETECTED",
+      "to_status": "DETECTED",
+      "updated_by": "System",
+      "notes": "Initial status"
+    },
+    {
+      "timestamp": "2026-02-02T10:27:09.589650Z",
+      "from_status": "DETECTED",
+      "to_status": "INVESTIGATING",
+      "updated_by": "User",
+      "notes": "Status changed from DETECTED to INVESTIGATING"
+    },
+    {
+      "timestamp": "2026-02-02T11:58:20.379214Z",
+      "from_status": "INVESTIGATING",
+      "to_status": "IDENTIFIED",
+      "updated_by": "User",
+      "notes": "Status changed from INVESTIGATING to IDENTIFIED"
+    }
+  ],
+  "last_updated": "2026-02-02T11:58:20.379214Z"
+}

@@ -1,0 +1,20 @@
+{
+  "incident_id": "INC-2026-0202-1228",
+  "history": [
+    {
+      "timestamp": "2026-02-02T12:30:45.513012Z",
+      "from_status": "DETECTED",
+      "to_status": "INVESTIGATING",
+      "updated_by": "admin",
+      "notes": "Smoke test status update"
+    },
+    {
+      "timestamp": "2026-02-02T12:30:55.346891Z",
+      "from_status": "INVESTIGATING",
+      "to_status": "INVESTIGATING",
+      "updated_by": "admin",
+      "notes": "Smoke test status update"
+    }
+  ],
+  "last_updated": "2026-02-02T12:30:55.346891Z"
+}

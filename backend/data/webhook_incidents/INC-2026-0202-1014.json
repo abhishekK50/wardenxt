@@ -1,0 +1,38 @@
+{
+  "external_incident": {
+    "incident_id": "INC-2026-0202-1014",
+    "source": "slack",
+    "raw_payload": {
+      "text": "ALERT: API response time >5s on checkout service",
+      "channel": "incidents",
+      "timestamp": "1770027281",
+      "user": "U12345"
+    },
+    "created_at": "2026-02-02T10:14:58.944050Z",
+    "auto_analyzed": false,
+    "analysis_id": null,
+    "incident_data": {
+      "incident_id": "INC-2026-0202-1014",
+      "title": "ALERT: API response time >5s on checkout service",
+      "severity": "P1",
+      "status": "IDENTIFIED",
+      "services_affected": [
+        "checkout"
+      ],
+      "root_cause": {
+        "primary": "Incident detected via Slack webhook",
+        "secondary": null
+      },
+      "duration_minutes": 0,
+      "estimated_cost": "$15,000+",
+      "users_impacted": "5000+ users",
+      "mitigation_steps": [
+        "Incident auto-ingested from Slack",
+        "AI analysis queued"
+      ],
+      "lessons_learned": [],
+      "incident_type": "webhook_slack",
+      "start_time": "2026-02-02T10:14:58.943985Z"
+    }
+  }
+}

@@ -131,3 +131,45 @@ class StatusUpdateRequest(BaseModel):
     new_status: IncidentStatus
     notes: Optional[str] = None
     updated_by: str = "User"
+
+
+# Webhook Models
+
+class PagerDutyWebhook(BaseModel):
+    """PagerDuty incident webhook payload"""
+    event_type: str
+    incident: Dict
+
+
+class SlackWebhook(BaseModel):
+    """Slack alert webhook payload"""
+    text: str
+    channel: Optional[str] = None
+    timestamp: Optional[str] = None
+    user: Optional[str] = None
+
+
+class GenericWebhook(BaseModel):
+    """Generic webhook that accepts any JSON"""
+    data: Dict = Field(default_factory=dict)
+
+    class Config:
+        extra = "allow"  # Allow any additional fields
+
+
+class WebhookSource(str, Enum):
+    """Webhook source type"""
+    PAGERDUTY = "pagerduty"
+    SLACK = "slack"
+    GENERIC = "generic"
+
+
+class ExternalIncident(BaseModel):
+    """Incident created from external webhook"""
+    incident_id: str
+    source: WebhookSource
+    raw_payload: Dict
+    created_at: str
+    incident_data: IncidentSummary
+    auto_analyzed: bool = False
+    analysis_id: Optional[str] = None

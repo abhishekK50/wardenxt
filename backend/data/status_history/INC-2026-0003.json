@@ -7,7 +7,14 @@
       "to_status": "DETECTED",
       "updated_by": "System",
       "notes": "Initial status"
+    },
+    {
+      "timestamp": "2026-01-27T17:00:42.943922Z",
+      "from_status": "DETECTED",
+      "to_status": "INVESTIGATING",
+      "updated_by": "User",
+      "notes": "Status changed from DETECTED to INVESTIGATING"
     }
   ],
-  "last_updated": "2026-01-24T19:22:13.467203Z"
+  "last_updated": "2026-01-27T17:00:42.943922Z"
 }

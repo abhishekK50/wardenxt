@@ -24,6 +24,12 @@ router = APIRouter(prefix="/analysis", tags=["analysis"])
 data_loader = DataLoader()
 analyzer = IncidentAnalyzer()
 
+
+def get_webhook_incident_data():
+    """Import webhook incident data storage (avoid circular import)"""
+    from app.api.webhooks import webhook_incidents, webhook_incident_data
+    return webhook_incidents, webhook_incident_data
+
 # Cache for generated briefs with TTL (timestamp, brief)
 # In production, use Redis for distributed caching
 CACHE_TTL_MINUTES = 60  # Cache expires after 1 hour
@@ -81,8 +87,13 @@ async def analyze_incident(
         return cached_brief
 
     try:
-        # Load incident data
-        incident = data_loader.load_incident(incident_id)
+        # Load incident data - check webhook incidents first
+        webhook_incidents_dict, webhook_incident_data_dict = get_webhook_incident_data()
+        if incident_id in webhook_incident_data_dict:
+            incident = webhook_incident_data_dict[incident_id]
+        else:
+            # Fall back to file-based incidents
+            incident = data_loader.load_incident(incident_id)
 
         # Set max_logs from request or default
         max_logs = analysis_request.max_logs if analysis_request else 1000

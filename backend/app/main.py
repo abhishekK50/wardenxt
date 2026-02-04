@@ -5,6 +5,9 @@ Main application entry point
 
 
 import json
+import time
+import psutil
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -16,7 +19,10 @@ from slowapi.util import get_remote_address
 import sqlalchemy as sa
 
 from app.config import settings, validate_security_settings
-from app.api import incidents, analysis, status, auth
+
+# Track application start time for uptime calculation
+APP_START_TIME = time.time()
+from app.api import incidents, analysis, status, auth, webhooks, voice, runbooks, predictions
 from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.core.logging import setup_logging, get_logger
@@ -75,63 +81,79 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
 app.include_router(analysis.router, prefix="/api")
 app.include_router(status.router, prefix="/api")
-
-
-
-
-@app.get("/api/incidents/")
-async def list_incidents():
-    """List all available incidents with full metadata"""
-    output_dir = Path(__file__).parent.parent / "data-generation" / "output"
-    
-    if not output_dir.exists():
-        return {"incidents": []}
-    
-    incidents = []
-    for incident_dir in output_dir.iterdir():
-        if incident_dir.is_dir():
-            summary_file = incident_dir / "summary.json"
-            if summary_file.exists():
-                with open(summary_file, 'r') as f:
-                    incident_data = json.load(f)
-                    incidents.append(incident_data)
-    
-    # Sort by incident_id descending (newest first)
-    incidents.sort(key=lambda x: x.get('incident_id', ''), reverse=True)
-    
-    return {"incidents": incidents}
-
-
+app.include_router(webhooks.router, prefix="/api")
+app.include_router(voice.router, prefix="/api")
+app.include_router(runbooks.router, prefix="/api")
+app.include_router(predictions.router, prefix="/api")
 
 
 
 
 @app.get("/")
 async def root():
-    """Root endpoint - API info"""
+    """Root endpoint - API welcome and info"""
     return {
-        "name": "WardenXT API",
+        "message": "WardenXT API - AI-Powered Incident Commander",
         "version": "1.0.0",
-        "description": "AI-Powered Incident Commander using Gemini 3",
+        "description": "From reactive firefighting to proactive prevention using Google Gemini 3",
+        "powered_by": "Google Gemini 3 Flash",
+        "docs": "/docs",
+        "health": "/health",
         "features": {
-            "total_recall": settings.enable_total_recall,
-            "visual_debug": settings.enable_visual_debug,
-            "agentic_actions": settings.enable_agentic_actions,
-            "change_sentinel": settings.enable_change_sentinel
+            "ai_analysis": "Analyze thousands of logs in seconds",
+            "voice_commander": "Natural language incident queries",
+            "auto_runbooks": "Generate executable remediation scripts",
+            "predictive_analytics": "Forecast incidents before they occur",
+            "real_time_ingestion": "Webhook integration with monitoring tools"
         },
         "endpoints": {
-            "docs": "/docs",
             "incidents": "/api/incidents",
-            "analysis": "/api/analysis"
+            "analysis": "/api/analysis",
+            "predictions": "/api/predictions",
+            "voice": "/api/voice",
+            "runbooks": "/api/runbooks",
+            "webhooks": "/api/webhooks"
         }
     }
 
 
+def get_uptime() -> str:
+    """Calculate application uptime"""
+    uptime_seconds = int(time.time() - APP_START_TIME)
+    days = uptime_seconds // 86400
+    hours = (uptime_seconds % 86400) // 3600
+    minutes = (uptime_seconds % 3600) // 60
+    seconds = uptime_seconds % 60
+
+    if days > 0:
+        return f"{days}d {hours}h {minutes}m {seconds}s"
+    elif hours > 0:
+        return f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        return f"{minutes}m {seconds}s"
+    else:
+        return f"{seconds}s"
+
+
+def get_memory_usage() -> dict:
+    """Get current memory usage"""
+    try:
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        return {
+            "rss_mb": round(memory_info.rss / 1024 / 1024, 2),
+            "vms_mb": round(memory_info.vms / 1024 / 1024, 2),
+            "percent": round(process.memory_percent(), 2)
+        }
+    except Exception:
+        return {"error": "Unable to retrieve memory info"}
+
+
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Comprehensive health check endpoint for monitoring"""
     from app.db.database import sync_engine
-    
+
     # Check database connection
     db_status = "healthy"
     try:
@@ -140,13 +162,37 @@ async def health_check():
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
         logger.error("health_check_db_failed", extra_fields={"error": str(e)})
-    
+
+    # Check Gemini API (basic check - just verify config exists)
+    gemini_status = "configured" if settings.gemini_api_key else "not_configured"
+
+    # Overall status
+    is_healthy = db_status == "healthy" and gemini_status == "configured"
+
     return {
-        "status": "healthy" if db_status == "healthy" else "degraded",
-        "database": db_status,
-        "gemini_model": settings.gemini_model,
+        "status": "healthy" if is_healthy else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "1.0.0",
         "environment": settings.app_env,
-        "version": "1.0.0"
+        "uptime": get_uptime(),
+        "memory": get_memory_usage(),
+        "services": {
+            "database": db_status,
+            "gemini_api": gemini_status,
+            "webhooks": "active",
+            "predictions": "running",
+            "voice": "active",
+            "runbooks": "active"
+        },
+        "config": {
+            "gemini_model": settings.gemini_model,
+            "features": {
+                "total_recall": settings.enable_total_recall,
+                "visual_debug": settings.enable_visual_debug,
+                "agentic_actions": settings.enable_agentic_actions,
+                "change_sentinel": settings.enable_change_sentinel
+            }
+        }
     }
 
 

@@ -1,0 +1,45 @@
+{
+  "external_incident": {
+    "incident_id": "INC-2026-0201-1749",
+    "source": "pagerduty",
+    "raw_payload": {
+      "event_type": "incident.triggered",
+      "incident": {
+        "id": "PD12345",
+        "title": "High memory usage on prod-db-04",
+        "urgency": "high",
+        "status": "triggered",
+        "service": {
+          "name": "Database Cluster"
+        },
+        "created_at": "2026-02-01T17:49:43.781Z"
+      }
+    },
+    "created_at": "2026-02-01T17:49:58.448668Z",
+    "auto_analyzed": false,
+    "analysis_id": null,
+    "incident_data": {
+      "incident_id": "INC-2026-0201-1749",
+      "title": "High memory usage on prod-db-04",
+      "severity": "P1",
+      "status": "DETECTED",
+      "services_affected": [
+        "Database Cluster"
+      ],
+      "root_cause": {
+        "primary": "Incident detected via PagerDuty webhook",
+        "secondary": null
+      },
+      "duration_minutes": 0,
+      "estimated_cost": "$15,000+",
+      "users_impacted": "5000+ users",
+      "mitigation_steps": [
+        "Incident auto-ingested",
+        "AI analysis queued"
+      ],
+      "lessons_learned": [],
+      "incident_type": "webhook_pagerduty",
+      "start_time": "2026-02-01T17:49:43.781Z"
+    }
+  }
+}

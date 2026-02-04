@@ -6,8 +6,9 @@ Handles all interactions with Gemini 3 API
 from google import genai
 from google.genai import types
 from app.config import settings, validate_gemini_key
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 import json
+import asyncio
 
 
 class GeminiClient:
@@ -247,6 +248,51 @@ Respond in JSON format."""
                     result_text = result_text[4:]
             
             return json.loads(result_text)
-            
+
         except Exception as e:
             raise RuntimeError(f"Root cause analysis failed: {str(e)}")
+
+    async def generate_content_async(self, prompt: str, temperature: float = 0.3) -> Any:
+        """Generate content asynchronously
+
+        Args:
+            prompt: Prompt text
+            temperature: Temperature for generation
+
+        Returns:
+            Generated response object
+        """
+        try:
+            # Run synchronous call in executor for async compatibility
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=self.SYSTEM_INSTRUCTION,
+                        temperature=temperature,
+                        max_output_tokens=8192
+                    )
+                )
+            )
+            return response
+        except Exception as e:
+            raise RuntimeError(f"Gemini async generation failed: {str(e)}")
+
+
+# Global instance
+_gemini_client: Optional[GeminiClient] = None
+
+
+def get_gemini_client() -> GeminiClient:
+    """Get or create global Gemini client instance
+
+    Returns:
+        GeminiClient instance
+    """
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = GeminiClient()
+    return _gemini_client

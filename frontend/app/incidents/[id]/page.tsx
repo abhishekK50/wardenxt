@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Clock, DollarSign, Users, AlertTriangle, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, DollarSign, Users, AlertTriangle, CheckCircle, Sparkles, Loader2, Webhook, ChevronDown, ChevronUp, Volume2, VolumeX, Wrench } from 'lucide-react';
 import { useAPI } from '@/lib/hooks/useAPI';
 import { useToast } from '@/app/components/ErrorToast';
 import StatusBadge, { type IncidentStatus } from '@/app/components/StatusBadge';
@@ -11,6 +11,11 @@ import StatusHistory from '@/app/components/StatusHistory';
 import AgentReasoningView from '@/app/components/AgentReasoningView';
 import MetricsDashboard from '@/app/components/MetricsDashboard';
 import RCADocumentGenerator from '@/app/components/RCADocumentGenerator';
+import RunbookPanel from '@/app/components/RunbookPanel';
+import CommandExecutionModal from '@/app/components/CommandExecutionModal';
+import ExecutionHistory from '@/app/components/ExecutionHistory';
+import { exportRunbookAsMarkdown } from '@/app/components/RunbookExport';
+import type { Runbook, RunbookCommand, ExecutionResult } from '@/lib/api';
 
 
 interface IncidentDetail {
@@ -24,6 +29,34 @@ interface IncidentDetail {
   root_cause: any;
   mitigation_steps: string[];
   lessons_learned?: string[];
+  start_time?: string;
+  status?: string;
+}
+
+// Helper to calculate live duration from start time
+function calculateLiveDuration(startTime: string | undefined): { hours: number; minutes: number; seconds: number; totalMinutes: number } {
+  if (!startTime) {
+    return { hours: 0, minutes: 0, seconds: 0, totalMinutes: 0 };
+  }
+
+  const start = new Date(startTime).getTime();
+  const now = Date.now();
+  const diffMs = Math.max(0, now - start);
+
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const seconds = totalSeconds % 60;
+
+  return { hours, minutes, seconds, totalMinutes };
+}
+
+// Check if incident is active (not resolved/closed)
+function isIncidentActive(status: string | undefined): boolean {
+  if (!status) return true;
+  const resolvedStatuses = ['RESOLVED', 'CLOSED'];
+  return !resolvedStatuses.includes(status.toUpperCase());
 }
 
 const severityColors = {
@@ -46,21 +79,81 @@ export default function IncidentDetailPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<IncidentStatus>('DETECTED');
   const [statusHistoryKey, setStatusHistoryKey] = useState(0);
+  const [webhookMetadata, setWebhookMetadata] = useState<any>(null);
+  const [showRawPayload, setShowRawPayload] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [speechUtterance, setSpeechUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [liveDuration, setLiveDuration] = useState({ hours: 0, minutes: 0, seconds: 0, totalMinutes: 0 });
+
+  // Runbook state
+  const [runbook, setRunbook] = useState<Runbook | null>(null);
+  const [generatingRunbook, setGeneratingRunbook] = useState(false);
+  const [executedSteps, setExecutedSteps] = useState<Set<number>>(new Set());
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
+  const [selectedCommand, setSelectedCommand] = useState<{
+    command: RunbookCommand;
+    stepNumber: number;
+    commandIndex: number;
+  } | null>(null);
 
   useEffect(() => {
     if (params.id) {
       fetchIncidentData(params.id as string);
       fetchCurrentStatus(params.id as string);
+      fetchWebhookMetadata(params.id as string);
     }
   }, [params.id]);
+
+  // Real-time duration updates for active incidents
+  useEffect(() => {
+    if (!incident?.start_time) return;
+
+    // Check if incident is still active
+    const isActive = isIncidentActive(currentStatus);
+
+    if (!isActive) {
+      // For resolved incidents, show static duration
+      setLiveDuration({
+        hours: Math.floor(incident.duration_minutes / 60),
+        minutes: incident.duration_minutes % 60,
+        seconds: 0,
+        totalMinutes: incident.duration_minutes
+      });
+      return;
+    }
+
+    // Initial calculation
+    setLiveDuration(calculateLiveDuration(incident.start_time));
+
+    // Update every second for real-time display
+    const interval = setInterval(() => {
+      setLiveDuration(calculateLiveDuration(incident.start_time));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [incident?.start_time, incident?.duration_minutes, currentStatus]);
 
   const fetchCurrentStatus = async (id: string) => {
     try {
       const data = await api.getIncidentStatus(id);
       setCurrentStatus(data.current_status as IncidentStatus);
     } catch (error) {
-      console.error('Error fetching status:', error);
-      // Don't show toast for status - it's not critical
+      // Status not found is expected for incidents without status history
+      // Only log in development for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Status not available for incident:', id);
+      }
+    }
+  };
+
+  const fetchWebhookMetadata = async (id: string) => {
+    try {
+      const data = await api.getWebhookIncident(id);
+      if (data) {
+        setWebhookMetadata(data);
+      }
+    } catch {
+      // Not a webhook incident - that's expected for most incidents
     }
   };
 
@@ -118,6 +211,117 @@ export default function IncidentDetailPage() {
     }
   };
 
+  const handlePlaySummary = async () => {
+    if (!incident) return;
+
+    // Stop current speech if playing
+    if (speechUtterance) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+      setSpeechUtterance(null);
+      return;
+    }
+
+    try {
+      setIsPlayingAudio(true);
+
+      // Get summary text from backend
+      const summaryData = await api.getIncidentAudioSummary(incident.incident_id);
+
+      // Check if browser supports speech synthesis
+      if (!('speechSynthesis' in window)) {
+        showToast('Your browser does not support text-to-speech', 'error');
+        setIsPlayingAudio(false);
+        return;
+      }
+
+      // Create and configure utterance
+      const utterance = new SpeechSynthesisUtterance(summaryData.summary_text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Try to use a good English voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+        || voices.find(v => v.lang.startsWith('en'));
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onend = () => {
+        setIsPlayingAudio(false);
+        setSpeechUtterance(null);
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        showToast('Failed to play audio summary', 'error');
+        setIsPlayingAudio(false);
+        setSpeechUtterance(null);
+      };
+
+      setSpeechUtterance(utterance);
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load summary';
+      console.error(err);
+      showToast(errorMessage, 'error');
+      setIsPlayingAudio(false);
+      setSpeechUtterance(null);
+    }
+  };
+
+  const generateRunbook = async () => {
+    if (!incident) return;
+
+    setGeneratingRunbook(true);
+    try {
+      const generatedRunbook = await api.generateRunbook(incident.incident_id);
+      setRunbook(generatedRunbook);
+      showToast('Runbook generated successfully', 'success');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate runbook';
+      console.error(err);
+      showToast(errorMessage, 'error');
+    } finally {
+      setGeneratingRunbook(false);
+    }
+  };
+
+  const handleExecuteCommand = (stepNumber: number, commandIndex: number, command: RunbookCommand) => {
+    setSelectedCommand({ command, stepNumber, commandIndex });
+    setShowExecutionModal(true);
+  };
+
+  const executeCommand = async (dryRun: boolean, confirmationText?: string): Promise<ExecutionResult> => {
+    if (!selectedCommand || !incident) {
+      throw new Error('No command selected');
+    }
+
+    const result = await api.executeRunbookStep(incident.incident_id, {
+      step_number: selectedCommand.stepNumber,
+      command_index: selectedCommand.commandIndex,
+      dry_run: dryRun,
+      confirmation_text: confirmationText,
+      executed_by: 'user'
+    });
+
+    // Mark step as executed if successful and not dry-run
+    if (result.success && !dryRun) {
+      setExecutedSteps(prev => new Set(prev).add(selectedCommand.stepNumber));
+    }
+
+    return result;
+  };
+
+  const handleExportRunbook = () => {
+    if (runbook) {
+      exportRunbookAsMarkdown(runbook);
+      showToast('Runbook exported successfully', 'success');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
@@ -152,6 +356,17 @@ export default function IncidentDetailPage() {
                   {incident.severity}
                 </span>
                 <StatusBadge status={currentStatus} size="md" />
+                {webhookMetadata && (
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/50 flex items-center gap-1.5">
+                    <Webhook className="h-3 w-3" />
+                    {webhookMetadata.source === 'pagerduty' && 'PagerDuty'}
+                    {webhookMetadata.source === 'slack' && 'Slack'}
+                    {webhookMetadata.source === 'generic' && 'Generic Webhook'}
+                    {webhookMetadata.auto_analyzed && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-blue-500/30 text-blue-300 rounded text-xs">AI</span>
+                    )}
+                  </span>
+                )}
                 <span className="text-slate-500 font-mono text-sm">{incident.incident_id}</span>
               </div>
               <h1 className="text-3xl font-bold text-white">{incident.title}</h1>
@@ -163,9 +378,9 @@ export default function IncidentDetailPage() {
                 currentStatus={currentStatus}
                 onStatusChange={handleStatusChange}
               />
-              <button 
-                onClick={runAnalysis} 
-                disabled={analyzing} 
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing}
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
               >
                 {analyzing ? (
@@ -186,6 +401,88 @@ export default function IncidentDetailPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Quick Actions Bar */}
+        <div className="mb-6 flex items-center gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-lg">
+          <span className="text-sm text-slate-400 font-medium">Quick Actions:</span>
+          <button
+            onClick={handlePlaySummary}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-700"
+          >
+            {isPlayingAudio ? (
+              <>
+                <VolumeX className="h-4 w-4 text-purple-400" />
+                Stop Audio
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-4 w-4 text-purple-400" />
+                Listen to Summary
+              </>
+            )}
+          </button>
+          <button
+            onClick={generateRunbook}
+            disabled={generatingRunbook}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generatingRunbook ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-orange-400" />
+                Generating...
+              </>
+            ) : runbook ? (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-400" />
+                Runbook Ready
+              </>
+            ) : (
+              <>
+                <Wrench className="h-4 w-4 text-orange-400" />
+                Generate Runbook
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Webhook Source Info */}
+        {webhookMetadata && (
+          <div className="mb-8 bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowRawPayload(!showRawPayload)}
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Webhook className="h-5 w-5 text-purple-400" />
+                <div className="text-left">
+                  <h3 className="text-lg font-semibold text-white">
+                    Webhook Source: {webhookMetadata.source === 'pagerduty' && 'PagerDuty'}
+                    {webhookMetadata.source === 'slack' && 'Slack'}
+                    {webhookMetadata.source === 'generic' && 'Generic Webhook'}
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    Auto-ingested on {new Date(webhookMetadata.created_at).toLocaleString()}
+                    {webhookMetadata.auto_analyzed && ' • AI analysis completed'}
+                  </p>
+                </div>
+              </div>
+              {showRawPayload ? (
+                <ChevronUp className="h-5 w-5 text-slate-400" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-slate-400" />
+              )}
+            </button>
+
+            {showRawPayload && (
+              <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/50">
+                <h4 className="text-sm font-semibold text-slate-400 mb-3">Raw Webhook Payload</h4>
+                <pre className="text-xs text-slate-300 font-mono bg-slate-900 p-4 rounded-lg border border-slate-800 overflow-x-auto">
+                  {JSON.stringify(webhookMetadata.raw_payload, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Agent Reasoning View - Real-time */}
         {analyzing && (
           <div className="mb-8">
@@ -279,10 +576,20 @@ export default function IncidentDetailPage() {
         )}
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
-            <Clock className="h-5 w-5 text-blue-400 mb-2" />
+          <div className={`bg-slate-900/50 border rounded-lg p-6 ${isIncidentActive(currentStatus) ? 'border-blue-500/50' : 'border-slate-800'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className={`h-5 w-5 ${isIncidentActive(currentStatus) ? 'text-blue-400 animate-pulse' : 'text-blue-400'}`} />
+              {isIncidentActive(currentStatus) && (
+                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full font-medium animate-pulse">LIVE</span>
+              )}
+            </div>
             <p className="text-slate-400 text-sm">Duration</p>
-            <p className="text-2xl font-bold text-white">{Math.floor(incident.duration_minutes/60)}h {incident.duration_minutes%60}m</p>
+            <p className={`text-2xl font-bold ${isIncidentActive(currentStatus) ? 'text-blue-400' : 'text-white'}`}>
+              {liveDuration.hours}h {liveDuration.minutes}m
+              {isIncidentActive(currentStatus) && (
+                <span className="text-lg text-blue-300"> {liveDuration.seconds.toString().padStart(2, '0')}s</span>
+              )}
+            </p>
           </div>
           <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6">
             <AlertTriangle className="h-5 w-5 text-orange-400 mb-2" />
@@ -380,7 +687,7 @@ export default function IncidentDetailPage() {
         {/* RCA Document Generator */}
         {analysis && (
           <div className="mb-8">
-            <RCADocumentGenerator 
+            <RCADocumentGenerator
               incident={{
                 incident_id: incident.incident_id,
                 title: incident.title,
@@ -393,13 +700,45 @@ export default function IncidentDetailPage() {
                 },
                 mitigation_steps: incident.mitigation_steps,
                 lessons_learned: incident.lessons_learned,
-              }} 
-              analysis={analysis} 
+              }}
+              analysis={analysis}
             />
+          </div>
+        )}
+
+        {/* Auto-Generated Runbook */}
+        {runbook && (
+          <div className="mb-8">
+            <RunbookPanel
+              runbook={runbook}
+              onExecuteCommand={handleExecuteCommand}
+              onExport={handleExportRunbook}
+              executedSteps={executedSteps}
+            />
+          </div>
+        )}
+
+        {/* Execution History */}
+        {runbook && (
+          <div className="mb-8">
+            <ExecutionHistory incidentId={incident.incident_id} />
           </div>
         )}
       </main>
     </div>
+
+    {/* Command Execution Modal */}
+    <CommandExecutionModal
+      isOpen={showExecutionModal}
+      onClose={() => {
+        setShowExecutionModal(false);
+        setSelectedCommand(null);
+      }}
+      command={selectedCommand?.command || null}
+      stepNumber={selectedCommand?.stepNumber || 0}
+      commandIndex={selectedCommand?.commandIndex || 0}
+      onExecute={executeCommand}
+    />
     </>
   );
 }

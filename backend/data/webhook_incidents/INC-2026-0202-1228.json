@@ -1,0 +1,45 @@
+{
+  "external_incident": {
+    "incident_id": "INC-2026-0202-1228",
+    "source": "pagerduty",
+    "raw_payload": {
+      "event_type": "incident.triggered",
+      "incident": {
+        "id": "PD-SMOKE-TEST",
+        "title": "[SMOKE TEST] API latency spike on checkout-service",
+        "urgency": "high",
+        "status": "triggered",
+        "service": {
+          "name": "Checkout Service"
+        },
+        "created_at": "2026-02-02T12:28:34Z"
+      }
+    },
+    "created_at": "2026-02-02T12:28:34.845295Z",
+    "auto_analyzed": true,
+    "analysis_id": "INC-2026-0202-1228",
+    "incident_data": {
+      "incident_id": "INC-2026-0202-1228",
+      "title": "[SMOKE TEST] API latency spike on checkout-service",
+      "severity": "P1",
+      "status": "INVESTIGATING",
+      "services_affected": [
+        "Checkout Service"
+      ],
+      "root_cause": {
+        "primary": "Incident detected via PagerDuty webhook",
+        "secondary": null
+      },
+      "duration_minutes": 0,
+      "estimated_cost": "$15,000+",
+      "users_impacted": "5000+ users",
+      "mitigation_steps": [
+        "Incident auto-ingested",
+        "AI analysis queued"
+      ],
+      "lessons_learned": [],
+      "incident_type": "webhook_pagerduty",
+      "start_time": "2026-02-02T12:28:34Z"
+    }
+  }
+}

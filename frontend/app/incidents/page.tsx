@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, Clock, DollarSign, Users, TrendingUp, ChevronRight, Activity, Zap } from 'lucide-react';
+import { AlertCircle, Clock, DollarSign, Users, TrendingUp, ChevronRight, Activity, Zap, Volume2, Loader2, Brain, Shield } from 'lucide-react';
 import { useAPI } from '@/lib/hooks/useAPI';
 import { useToast } from '@/app/components/ErrorToast';
 import StatusBadge, { IncidentStatus } from '@/app/components/StatusBadge';
+import LiveIncidentFeed from '@/app/components/LiveIncidentFeed';
+import VoiceCommander from '@/app/components/VoiceCommander';
+import { api as apiClient, RiskScore } from '@/lib/api';
 
 interface Incident {
   incident_id: string;
@@ -19,6 +22,30 @@ interface Incident {
   estimated_cost: string;
   users_impacted: string;
   mttr_actual: string;
+}
+
+// Helper to calculate live duration from start time
+function calculateLiveDuration(startTime: string | undefined): { hours: number; minutes: number; totalMinutes: number } {
+  if (!startTime) {
+    return { hours: 0, minutes: 0, totalMinutes: 0 };
+  }
+
+  const start = new Date(startTime).getTime();
+  const now = Date.now();
+  const diffMs = Math.max(0, now - start);
+
+  const totalMinutes = Math.floor(diffMs / 1000 / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return { hours, minutes, totalMinutes };
+}
+
+// Check if incident is active (not resolved/closed)
+function isIncidentActive(status: string | undefined): boolean {
+  if (!status) return true;
+  const resolvedStatuses = ['RESOLVED', 'CLOSED'];
+  return !resolvedStatuses.includes(status.toUpperCase());
 }
 
 const severityColors = {
@@ -55,12 +82,65 @@ export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [playingIncidentId, setPlayingIncidentId] = useState<string | null>(null);
+  const [riskScore, setRiskScore] = useState<RiskScore | null>(null);
+  const [liveDurations, setLiveDurations] = useState<Record<string, { hours: number; minutes: number; totalMinutes: number }>>({});
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const api = useAPI();
   const { showToast, ToastContainer } = useToast();
 
   useEffect(() => {
     fetchIncidents();
+    fetchRiskScore();
   }, []);
+
+  // Update live durations every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+
+      // Recalculate durations for all active incidents
+      const newDurations: Record<string, { hours: number; minutes: number; totalMinutes: number }> = {};
+      incidents.forEach(inc => {
+        if (isIncidentActive(inc.status) && inc.start_time) {
+          newDurations[inc.incident_id] = calculateLiveDuration(inc.start_time);
+        } else {
+          newDurations[inc.incident_id] = {
+            hours: Math.floor(inc.duration_minutes / 60),
+            minutes: inc.duration_minutes % 60,
+            totalMinutes: inc.duration_minutes
+          };
+        }
+      });
+      setLiveDurations(newDurations);
+    }, 30000); // Update every 30 seconds
+
+    // Initial calculation
+    const initialDurations: Record<string, { hours: number; minutes: number; totalMinutes: number }> = {};
+    incidents.forEach(inc => {
+      if (isIncidentActive(inc.status) && inc.start_time) {
+        initialDurations[inc.incident_id] = calculateLiveDuration(inc.start_time);
+      } else {
+        initialDurations[inc.incident_id] = {
+          hours: Math.floor(inc.duration_minutes / 60),
+          minutes: inc.duration_minutes % 60,
+          totalMinutes: inc.duration_minutes
+        };
+      }
+    });
+    setLiveDurations(initialDurations);
+
+    return () => clearInterval(interval);
+  }, [incidents]);
+
+  const fetchRiskScore = async () => {
+    try {
+      const score = await apiClient.getRiskScore();
+      setRiskScore(score);
+    } catch (err) {
+      console.log('Risk score not available');
+    }
+  };
 
   const fetchIncidents = async () => {
     try {
@@ -100,6 +180,63 @@ export default function IncidentsPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handlePlaySummary = async (incidentId: string, event: React.MouseEvent) => {
+    // Prevent card click
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (playingIncidentId === incidentId) {
+      // Stop current playback
+      window.speechSynthesis.cancel();
+      setPlayingIncidentId(null);
+      return;
+    }
+
+    try {
+      setPlayingIncidentId(incidentId);
+
+      // Get summary text from backend
+      const summaryData = await api.getIncidentAudioSummary(incidentId);
+
+      // Check if browser supports speech synthesis
+      if (!('speechSynthesis' in window)) {
+        showToast('Your browser does not support text-to-speech', 'error');
+        setPlayingIncidentId(null);
+        return;
+      }
+
+      // Create utterance for browser TTS
+      const utterance = new SpeechSynthesisUtterance(summaryData.summary_text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Try to use a good English voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+        || voices.find(v => v.lang.startsWith('en'));
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onend = () => {
+        setPlayingIncidentId(null);
+      };
+
+      utterance.onerror = (err) => {
+        console.error('Speech synthesis error:', err);
+        setPlayingIncidentId(null);
+        showToast('Failed to play audio summary', 'error');
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error('Failed to get audio summary:', err);
+      setPlayingIncidentId(null);
+      showToast(err instanceof Error ? err.message : 'Failed to play summary', 'error');
+    }
   };
 
   if (loading) {
@@ -175,6 +312,8 @@ export default function IncidentsPage() {
   return (
     <>
       <ToastContainer />
+      <LiveIncidentFeed />
+      <VoiceCommander />
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         {/* Header */}
         <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
@@ -190,11 +329,30 @@ export default function IncidentsPage() {
                   AI-Powered Incident Commander for P0/P1/P2 Critical Incidents
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-500">Powered by</span>
-                <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                  Gemini 3 Flash Preview
-                </span>
+              <div className="flex items-center gap-4">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-400 hover:text-purple-300 transition-all"
+                >
+                  <Brain className="h-4 w-4" />
+                  <span className="text-sm font-medium">Predictive Analytics</span>
+                  {riskScore && riskScore.level !== 'low' && (
+                    <span className={`px-1.5 py-0.5 text-xs rounded ${
+                      riskScore.level === 'critical' ? 'bg-red-500 text-white' :
+                      riskScore.level === 'high' ? 'bg-orange-500 text-white' :
+                      'bg-yellow-500 text-black'
+                    }`}>
+                      {riskScore.score}
+                    </span>
+                  )}
+                </Link>
+                <div className="h-6 w-px bg-slate-700" />
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Powered by</span>
+                  <span className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                    Gemini 3 Flash Preview
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -202,7 +360,7 @@ export default function IncidentsPage() {
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-500/10 rounded-lg">
@@ -259,6 +417,40 @@ export default function IncidentsPage() {
               </p>
               <p className="text-xs text-slate-500 mt-2">Estimated business cost</p>
             </div>
+
+            {/* Risk Score Widget */}
+            <Link
+              href="/dashboard"
+              className="bg-slate-900/50 border border-slate-800 rounded-lg p-6 backdrop-blur-sm hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group cursor-pointer"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 rounded-lg ${
+                  riskScore?.level === 'critical' ? 'bg-red-500/10' :
+                  riskScore?.level === 'high' ? 'bg-orange-500/10' :
+                  riskScore?.level === 'medium' ? 'bg-yellow-500/10' :
+                  'bg-green-500/10'
+                }`}>
+                  <Shield className={`h-5 w-5 ${
+                    riskScore?.level === 'critical' ? 'text-red-400' :
+                    riskScore?.level === 'high' ? 'text-orange-400' :
+                    riskScore?.level === 'medium' ? 'text-yellow-400' :
+                    'text-green-400'
+                  }`} />
+                </div>
+                <span className="text-slate-400 text-sm font-medium">Risk Score</span>
+              </div>
+              <p className={`text-4xl font-bold ${
+                riskScore?.level === 'critical' ? 'text-red-400' :
+                riskScore?.level === 'high' ? 'text-orange-400' :
+                riskScore?.level === 'medium' ? 'text-yellow-400' :
+                'text-green-400'
+              }`}>
+                {riskScore?.score ?? '--'}
+              </p>
+              <p className="text-xs text-slate-500 mt-2 group-hover:text-purple-400 transition-colors">
+                View predictive analytics
+              </p>
+            </Link>
           </div>
 
           {/* Incidents List */}
@@ -306,17 +498,40 @@ export default function IncidentsPage() {
                           {incident.title}
                         </h3>
                       </div>
-                      <ChevronRight className="h-6 w-6 text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handlePlaySummary(incident.incident_id, e)}
+                          disabled={playingIncidentId === incident.incident_id}
+                          className="p-2 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                          title="Listen to summary"
+                        >
+                          {playingIncidentId === incident.incident_id ? (
+                            <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                          ) : (
+                            <Volume2 className="h-5 w-5 text-slate-500 hover:text-blue-400" />
+                          )}
+                        </button>
+                        <ChevronRight className="h-6 w-6 text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-800/50 rounded-lg">
-                          <Clock className="h-4 w-4 text-slate-400" />
+                        <div className={`p-2 rounded-lg ${isIncidentActive(incident.status) ? 'bg-blue-500/20' : 'bg-slate-800/50'}`}>
+                          <Clock className={`h-4 w-4 ${isIncidentActive(incident.status) ? 'text-blue-400 animate-pulse' : 'text-slate-400'}`} />
                         </div>
                         <div>
-                          <p className="text-slate-500 text-xs">Duration</p>
-                          <p className="text-white font-semibold">{formatDuration(incident.duration_minutes)}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-slate-500 text-xs">Duration</p>
+                            {isIncidentActive(incident.status) && (
+                              <span className="px-1 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded font-medium animate-pulse">LIVE</span>
+                            )}
+                          </div>
+                          <p className={`font-semibold ${isIncidentActive(incident.status) ? 'text-blue-400' : 'text-white'}`}>
+                            {liveDurations[incident.incident_id]
+                              ? `${liveDurations[incident.incident_id].hours}h ${liveDurations[incident.incident_id].minutes}m`
+                              : formatDuration(incident.duration_minutes)}
+                          </p>
                         </div>
                       </div>
 

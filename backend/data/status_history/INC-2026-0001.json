@@ -14,7 +14,14 @@
       "to_status": "INVESTIGATING",
       "updated_by": "User",
       "notes": "Status changed from CLOSED to INVESTIGATING"
+    },
+    {
+      "timestamp": "2026-01-27T17:04:29.501006Z",
+      "from_status": "INVESTIGATING",
+      "to_status": "IDENTIFIED",
+      "updated_by": "User",
+      "notes": "Status changed from INVESTIGATING to IDENTIFIED"
     }
   ],
-  "last_updated": "2026-01-24T18:09:20.076278Z"
+  "last_updated": "2026-01-27T17:04:29.501006Z"
 }

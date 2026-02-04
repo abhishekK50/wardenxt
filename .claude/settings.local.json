@@ -11,7 +11,20 @@
       "Bash(pip install:*)",
       "Bash(curl:*)",
       "WebFetch(domain:gemini3.devpost.com)",
-      "Read(//e/Projects/**)"
+      "Read(//e/Projects/**)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(netstat:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(powershell:*)",
+      "Bash(python -m app.main:*)",
+      "Bash(venvScriptspip install psutil==5.9.8)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImVtYWlsIjoiYWRtaW5Ad2FyZGVueHQubG9jYWwiLCJ1c2VyX2lkIjoyLCJyb2xlcyI6WyJhZG1pbiJdLCJleHAiOjE3NzAxMjE3ODUsImlhdCI6MTc3MDAzNTM4NX0.ohj9BDkizjdxj1C5E3hHy55nD6Xctw7gjBPlsFm4SuY\")"
     ]
   }
 }
