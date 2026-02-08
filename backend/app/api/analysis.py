@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from slowapi import Limiter
 
 from app.middleware.rate_limit import limiter
-from app.auth.dependencies import get_current_user_dependency
+from app.auth.dependencies import get_optional_user
 from app.core.audit import audit_log, get_client_ip, get_user_agent
 
 from app.models.analysis import (
@@ -68,7 +68,7 @@ async def analyze_incident(
     request: Request,
     incident_id: str,
     analysis_request: AnalysisRequest = None,
-    current_user: dict = Depends(get_current_user_dependency)
+    current_user: dict = Depends(get_optional_user)
 ):
     """Analyze incident using Gemini 3 AI
 
@@ -101,8 +101,8 @@ async def analyze_incident(
         # Audit log
         audit_log(
             action="incident_analysis_started",
-            user_id=current_user.get("user_id"),
-            username=current_user.get("username"),
+            user_id=current_user.get("user_id") if current_user else None,
+            username=current_user.get("username") if current_user else "anonymous",
             resource_type="incident",
             resource_id=incident_id,
             ip_address=get_client_ip(request),
@@ -129,7 +129,7 @@ async def analyze_incident(
 @router.get("/{incident_id}/brief", response_model=IncidentBrief)
 async def get_cached_brief(
     incident_id: str,
-    current_user: dict = Depends(get_current_user_dependency)
+    current_user: dict = Depends(get_optional_user)
 ):
     """Get cached analysis brief (if available)
 

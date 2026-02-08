@@ -85,7 +85,7 @@ export default function PredictiveDashboard() {
 
   // Calculate summary stats
   const highPriorityPredictions = predictions.filter(p => p.probability >= 60);
-  const criticalAnomalies = anomalies.filter(a => a.severity === 'critical' || a.severity === 'high');
+  const criticalAnomalies = anomalies.filter(a => a.severity === 'severe' || a.severity === 'moderate');
   const urgentRecommendations = recommendations.filter(r => r.priority === 'urgent' || r.priority === 'high');
 
   return (

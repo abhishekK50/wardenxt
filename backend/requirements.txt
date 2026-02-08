@@ -17,11 +17,11 @@ google-generativeai==0.3.2
 sqlalchemy==2.0.25
 alembic==1.13.1
 aiosqlite==0.19.0
-asyncpg==0.29.0  # PostgreSQL async driver
-psycopg2-binary==2.9.9  # PostgreSQL sync driver
+# asyncpg==0.29.0  # PostgreSQL async driver - disabled for SQLite
+# psycopg2-binary==2.9.9  # PostgreSQL sync driver - disabled for SQLite
 
-# Vector Store (simplified for Windows)
-chromadb==0.4.22
+# Vector Store - disabled for Railway deployment
+# chromadb==0.4.22
 
 # Data Processing
 pandas==2.1.4

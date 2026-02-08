@@ -27,7 +27,7 @@
   "rewrites": [
     {
       "source": "/api/proxy/:path*",
-      "destination": "https://your-backend-url.railway.app/api/:path*"
+      "destination": "https://wardenxt-backend.onrender.com/api/:path*"
     }
   ]
 }

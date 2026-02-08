@@ -15,7 +15,7 @@ from app.models.incident import (
 from app.core.data_loader import DataLoader
 from app.db.status_store import get_status_store
 from app.core.agent.status_stream import get_status_stream
-from app.auth.dependencies import get_current_user_dependency, require_incident_manager, get_user_from_token_or_query
+from app.auth.dependencies import get_optional_user, require_incident_manager, get_user_from_token_or_query
 
 router = APIRouter(prefix="/status", tags=["status"])
 
@@ -56,7 +56,7 @@ def load_incident_from_any_source(incident_id: str) -> Tuple[Incident, bool]:
 @router.get("/{incident_id}")
 async def get_incident_status(
     incident_id: str,
-    current_user: dict = Depends(get_current_user_dependency)
+    current_user: dict = Depends(get_optional_user)
 ):
     """Get current status of an incident
 
@@ -158,7 +158,7 @@ async def update_incident_status(
 @router.get("/{incident_id}/history")
 async def get_status_history(
     incident_id: str,
-    current_user: dict = Depends(get_current_user_dependency)
+    current_user: dict = Depends(get_optional_user)
 ):
     """Get complete status history for an incident
 
