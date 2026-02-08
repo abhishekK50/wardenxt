@@ -1,0 +1,50 @@
+[
+  {
+    "time": "02:15",
+    "event": "Database monitoring detects server unresponsive",
+    "impact": "All transactions failing, data write operations blocked. Automated alerts fired.",
+    "type": "incident_event"
+  },
+  {
+    "time": "02:20",
+    "event": "Server declared dead - hardware failure confirmed",
+    "impact": "Complete service outage. Hardware diagnostics indicate disk controller failure.",
+    "type": "incident_event"
+  },
+  {
+    "time": "02:30",
+    "event": "Incident escalated to P1 - Decision: BMR recovery required",
+    "impact": "War room activated. Last verified backup: 6 hours old. ETA: 4-6 hours for full recovery.",
+    "type": "incident_event"
+  },
+  {
+    "time": "02:45",
+    "event": "BMR recovery initiated from latest backup",
+    "impact": "Replacement hardware prepared. Recovery process started. All users notified of outage.",
+    "type": "incident_event"
+  },
+  {
+    "time": "04:30",
+    "event": "Base OS restored, database software reinstalling",
+    "impact": "50% recovery progress. Database binaries being restored. Network configuration verified.",
+    "type": "incident_event"
+  },
+  {
+    "time": "06:15",
+    "event": "Database restored, running integrity checks",
+    "impact": "90% complete. Full data restoration complete. Integrity validation in progress.",
+    "type": "incident_event"
+  },
+  {
+    "time": "07:45",
+    "event": "Integrity checks passed, preparing service restart",
+    "impact": "95% complete. Data verified. Preparing to bring service online.",
+    "type": "incident_event"
+  },
+  {
+    "time": "08:00",
+    "event": "BMR complete - Service restored and validated",
+    "impact": "Service back online. Transaction processing resumed. Monitoring confirmed stable.",
+    "type": "incident_event"
+  }
+]

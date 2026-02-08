@@ -1,0 +1,46 @@
+{
+  "incident_id": "INC-2026-0002",
+  "title": "Database Connection Pool Exhaustion Due to Memory Leak",
+  "severity": "P1",
+  "duration_minutes": 120,
+  "services_affected": [
+    "api-service",
+    "postgres-primary",
+    "load-balancer",
+    "cache-service"
+  ],
+  "root_cause": {
+    "primary": "Memory leak in ORM layer preventing connection cleanup",
+    "secondary": "Connection pool size insufficient for peak load with slow queries",
+    "contributing_factors": [
+      "Recent refactoring (v3.2.1) changed connection management",
+      "No load testing with connection pool monitoring",
+      "Alert threshold too high (85% instead of 80%)"
+    ]
+  },
+  "estimated_cost": "$780,000",
+  "users_impacted": "12,400+ failed requests",
+  "mitigation_steps": [
+    "Identified connection leak via database monitoring dashboard (Completed: 15:15)",
+    "Emergency rollback of application to v3.2.0 (Completed: 15:30)",
+    "Killed all idle database connections via pg_terminate_backend() (Completed: 15:30)",
+    "Restarted application servers to clear connection state (Completed: 15:35)",
+    "Increased connection pool monitoring granularity (Completed: 15:45)",
+    "Added connection leak detection unit tests to CI/CD (Planned)"
+  ],
+  "lessons_learned": [
+    "Connection pool monitoring must alert at 80% utilization, not 85%",
+    "ORM refactoring requires load testing with connection pool monitoring",
+    "Database connection leaks are silent killers - hard to detect until failure",
+    "Need automated connection leak detection in pre-production",
+    "Rollback procedures must be tested quarterly"
+  ],
+  "incident_type": "connection_pool_exhaustion",
+  "start_time": "2026-01-22T18:06:39Z",
+  "end_time": "2026-01-22T20:06:39Z",
+  "detection_time": "2026-01-22T18:08:39Z",
+  "resolution_time": "2026-01-22T20:06:39Z",
+  "business_impact": "HIGH - Major service degradation",
+  "mttr_actual": "2h 0m",
+  "mttr_target": "1h 0m"
+}

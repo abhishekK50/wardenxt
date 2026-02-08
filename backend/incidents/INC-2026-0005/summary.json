@@ -1,0 +1,49 @@
+{
+  "incident_id": "INC-2026-0005",
+  "title": "Kubernetes CrashLoopBackOff Due to Missing Environment Variable",
+  "severity": "P2",
+  "duration_minutes": 120,
+  "services_affected": [
+    "api-service",
+    "kubernetes-control-plane",
+    "load-balancer",
+    "configmap-store"
+  ],
+  "root_cause": {
+    "primary": "Critical environment variable DATABASE_URL removed from ConfigMap during consolidation",
+    "secondary": "CI/CD pipeline lacked integration tests validating app startup with production config",
+    "contributing_factors": [
+      "ConfigMap refactoring (v2.9.0 \u00e2\u2020\u2019 v2.9.1) removed 'legacy' env vars",
+      "Developer assumed DATABASE_URL was unused",
+      "Kubernetes rolling update didn't halt on pod failure",
+      "Exponential backoff delayed recovery by 10+ minutes"
+    ]
+  },
+  "estimated_cost": "$680,000",
+  "users_impacted": "8,500+ failed requests",
+  "mitigation_steps": [
+    "Identified CrashLoopBackOff via kubectl get pods (Completed: 16:15)",
+    "Examined pod logs: 'Required env var DATABASE_URL not found' (Completed: 16:30)",
+    "Compared ConfigMap v2.9.0 vs v2.9.1 - identified missing DATABASE_URL (Completed: 16:45)",
+    "Updated ConfigMap to restore DATABASE_URL (Completed: 17:15)",
+    "Deleted all crashing pods to bypass Kubernetes backoff delays (Completed: 17:25)",
+    "Verified new pods started successfully with restored config (Completed: 17:45)",
+    "Added startup validation tests to CI/CD pipeline (Planned)",
+    "Implemented ConfigMap diff review in deployment approval (Planned)"
+  ],
+  "lessons_learned": [
+    "ConfigMap changes require diff review and approval process",
+    "CI/CD must include integration tests validating app startup with production configs",
+    "Kubernetes exponential backoff can significantly extend MTTR - manual intervention needed",
+    "Rolling update maxUnavailable should halt on pod failure, not continue to 100%",
+    "Environment variable changes should be tracked in version control with peer review"
+  ],
+  "incident_type": "kubernetes_crashloop",
+  "start_time": "2026-01-22T18:06:39Z",
+  "end_time": "2026-01-22T20:06:39Z",
+  "detection_time": "2026-01-22T18:08:39Z",
+  "resolution_time": "2026-01-22T20:06:39Z",
+  "business_impact": "MEDIUM - Partial service impact",
+  "mttr_actual": "2h 0m",
+  "mttr_target": "1h 0m"
+}

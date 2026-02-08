@@ -1,0 +1,44 @@
+[
+  {
+    "time": "14:00",
+    "event": "Afternoon traffic begins ramping up - all systems healthy",
+    "impact": "Normal operations. Connection pool utilization: 47%. No alerts.",
+    "type": "incident_event"
+  },
+  {
+    "time": "14:30",
+    "event": "Connection pool utilization climbing steadily",
+    "impact": "Pool utilization: 76%. Response times increasing from 180ms to 420ms.",
+    "type": "incident_event"
+  },
+  {
+    "time": "14:45",
+    "event": "Connection pool 90% utilized - first timeouts occurring",
+    "impact": "Pool utilization: 90%. Error rate: 8.5%. Alert triggered. On-call engineer investigating.",
+    "type": "incident_event"
+  },
+  {
+    "time": "15:00",
+    "event": "All 100 connections in use - new requests timing out immediately",
+    "impact": "Pool 100% exhausted. Error rate: 94.2%. Complete service degradation. Incident escalated to P1.",
+    "type": "incident_event"
+  },
+  {
+    "time": "15:15",
+    "event": "Database activity monitoring shows connections not being released",
+    "impact": "pg_stat_activity shows 100 connections in 'idle in transaction' state. Root cause identified.",
+    "type": "incident_event"
+  },
+  {
+    "time": "15:30",
+    "event": "Application rolled back to v3.2.0 + database connections killed",
+    "impact": "Emergency rollback initiated. Idle connections terminated. Pool utilization: 57%.",
+    "type": "incident_event"
+  },
+  {
+    "time": "16:00",
+    "event": "All services restored - connection pool utilization normal",
+    "impact": "Service fully restored. Pool utilization: 66%. Error rate: 0.3%. Post-mortem scheduled.",
+    "type": "incident_event"
+  }
+]

@@ -1,0 +1,56 @@
+[
+  {
+    "time": "16:00",
+    "event": "Rolling update initiated - Deployment v2.9.1 with updated ConfigMap",
+    "impact": "Deployment started. All 12 pods running normally on v2.9.0.",
+    "type": "incident_event"
+  },
+  {
+    "time": "16:15",
+    "event": "3 new pods fail to start - immediately crash with missing env var",
+    "impact": "25% rollout. 3 pods in CrashLoopBackOff. Service capacity: 75%. Alert triggered.",
+    "type": "incident_event"
+  },
+  {
+    "time": "16:30",
+    "event": "6 pods now in CrashLoopBackOff - service severely degraded",
+    "impact": "50% rollout. 6 pods crashing. Service capacity: 50%. Incident escalated to P2.",
+    "type": "incident_event"
+  },
+  {
+    "time": "16:45",
+    "event": "9 pods in CrashLoopBackOff - service barely functional",
+    "impact": "75% rollout. 9 pods crashing. Service capacity: 25%. Root cause identified: missing DATABASE_URL.",
+    "type": "incident_event"
+  },
+  {
+    "time": "17:00",
+    "event": "All 12 pods in CrashLoopBackOff - complete service failure",
+    "impact": "100% rollout complete. All pods crashing. Service down. Error rate: 100%.",
+    "type": "incident_event"
+  },
+  {
+    "time": "17:15",
+    "event": "DATABASE_URL restored to ConfigMap - pods still in backoff",
+    "impact": "ConfigMap fixed but pods not restarting due to exponential backoff (160s delay).",
+    "type": "incident_event"
+  },
+  {
+    "time": "17:25",
+    "event": "Force deleting all pods to bypass backoff delay",
+    "impact": "Manual pod deletion. Fresh pods created with correct ConfigMap. 8/12 running.",
+    "type": "incident_event"
+  },
+  {
+    "time": "17:45",
+    "event": "10/12 pods running successfully",
+    "impact": "Service capacity: 83%. Deleting remaining 2 crashloop pods.",
+    "type": "incident_event"
+  },
+  {
+    "time": "18:00",
+    "event": "All 12 pods running - service fully restored",
+    "impact": "Service fully operational. All pods healthy. Error rate: 0.4%.",
+    "type": "incident_event"
+  }
+]

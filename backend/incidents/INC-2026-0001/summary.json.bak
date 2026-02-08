@@ -1,0 +1,46 @@
+{
+  "incident_id": "INC-2026-0001",
+  "title": "MATV Database Server Hardware Failure - BMR Recovery Required",
+  "severity": "P1",
+  "duration_minutes": 345,
+  "services_affected": [
+    "matv-database",
+    "transaction-processing",
+    "archive-system",
+    "reporting-engine",
+    "data-warehouse"
+  ],
+  "root_cause": {
+    "primary": "Hardware failure - Disk controller malfunction",
+    "secondary": "Single point of failure - No redundant controller in place",
+    "contributing_factors": [
+      "Server hardware aging (3+ years in production)",
+      "No proactive hardware monitoring for controller health",
+      "Backup frequency insufficient (6-hour intervals)"
+    ]
+  },
+  "estimated_cost": "$250,000",
+  "users_impacted": "2,400+ users (all transaction processing)",
+  "mitigation_steps": [
+    "Verify backup availability and integrity (Completed: 02:35)",
+    "Prepare replacement hardware with redundant controllers (Completed: 02:50)",
+    "Initiate BMR recovery process from backup (Started: 02:45)",
+    "Monitor recovery progress and validate each phase (Ongoing: 02:45-08:00)",
+    "Restore operating system and base configuration (Completed: 04:30)",
+    "Restore database software and binaries (Completed: 05:15)",
+    "Restore data files from backup (Completed: 06:15)",
+    "Run comprehensive data integrity checks (Completed: 07:45)",
+    "Validate database consistency and transaction logs (Completed: 07:50)",
+    "Resume service and monitor stability (Completed: 08:00)",
+    "Communicate status to all stakeholders (Ongoing)"
+  ],
+  "lessons_learned": [
+    "Implement hardware redundancy (RAID controller failover) - Priority: HIGH",
+    "Reduce backup frequency from 6 hours to 1 hour for critical databases - Priority: HIGH",
+    "Create and maintain detailed BMR runbook for faster recovery - Priority: MEDIUM",
+    "Implement database replication for high availability - Priority: HIGH",
+    "Add proactive hardware health monitoring and alerting - Priority: MEDIUM",
+    "Conduct quarterly DR (Disaster Recovery) drills - Priority: MEDIUM",
+    "Document and automate BMR procedures to reduce MTTR - Priority: HIGH"
+  ]
+}

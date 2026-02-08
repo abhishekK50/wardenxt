@@ -1,0 +1,39 @@
+{
+  "incident_id": "INC-2026-0003",
+  "title": "Memory Leak in Payment Service Leading to GC Thrashing and OOM",
+  "severity": "P2",
+  "duration_minutes": 240,
+  "services_affected": [
+    "payment-service",
+    "payment-gateway-api",
+    "checkout-service",
+    "order-fulfillment"
+  ],
+  "root_cause": {
+    "primary": "Unclosed HTTP client connections in payment gateway integration",
+    "secondary": "Missing try-finally blocks for resource cleanup",
+    "contributing_factors": [
+      "Recent refactoring (v2.8.0) changed HTTP client from singleton to per-request",
+      "Code review missed resource management issue",
+      "No memory leak detection in pre-production testing"
+    ]
+  },
+  "estimated_cost": "$1,200,000",
+  "users_impacted": "2,800+ failed transactions",
+  "mitigation_steps": [
+    "Captured heap dump from crashing instance for analysis (Completed: 13:30)",
+    "Eclipse MAT revealed 800+ unclosed HttpClient instances (Completed: 13:45)",
+    "Emergency code hotfix: Added httpClient.close() in finally block (Completed: 13:50)",
+    "Deployed hotfix v2.8.1 to all instances (Completed: 14:00)",
+    "Restarted all payment service pods to clear memory (Completed: 14:00)",
+    "Added resource leak detection to CI/CD static analysis (Planned)",
+    "Implemented heap memory alerts at 70% threshold (Completed: 14:15)"
+  ],
+  "lessons_learned": [
+    "Resource management (HTTP clients, DB connections) requires explicit lifecycle management",
+    "Code reviews must check for try-finally blocks on closeable resources",
+    "Memory leak detection tools should run in staging environment",
+    "Heap memory alerts need lower thresholds (70% not 85%)",
+    "Static analysis tools (SpotBugs) should enforce resource closure"
+  ]
+}

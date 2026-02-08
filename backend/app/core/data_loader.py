@@ -27,10 +27,22 @@ class DataLoader:
             data_directory: Path to generated data directory (absolute or relative)
         """
         if data_directory is None:
-            # Default: go up one level from backend to project root, then into data-generation/output
             backend_dir = Path(__file__).parent.parent.parent  # backend/
-            project_root = backend_dir.parent  # wardenxt/
-            data_directory = project_root / "data-generation" / "output"
+
+            # Try multiple locations for incident data
+            possible_paths = [
+                backend_dir / "incidents",  # Bundled with backend for deployment
+                backend_dir.parent / "data-generation" / "output",  # Development location
+            ]
+
+            data_directory = None
+            for path in possible_paths:
+                if path.exists():
+                    data_directory = path
+                    break
+
+            if data_directory is None:
+                data_directory = possible_paths[0]  # Default to first option
         else:
             data_directory = Path(data_directory)
 
@@ -41,20 +53,24 @@ class DataLoader:
         self.logger.debug("data_loader_init", extra_fields={"data_directory": str(self.data_dir)})
 
         if not self.data_dir.exists():
-            self.logger.error("data_directory_not_found", extra_fields={"path": str(self.data_dir)})
-            raise ValueError(f"Data directory not found: {self.data_dir}")
-
-        self.logger.info("data_loader_initialized", extra_fields={"path": str(self.data_dir)})
+            self.logger.warning("data_directory_not_found", extra_fields={"path": str(self.data_dir)})
+            # Don't raise error - app can work with webhook incidents only
+            self._data_available = False
+        else:
+            self._data_available = True
+            self.logger.info("data_loader_initialized", extra_fields={"path": str(self.data_dir)})
     
     def list_incidents(self) -> List[str]:
         """List all available incident IDs
-        
+
         Returns:
             List of incident IDs
         """
+        if not self._data_available:
+            return []
         try:
             incident_dirs = [
-                d.name for d in self.data_dir.iterdir() 
+                d.name for d in self.data_dir.iterdir()
                 if d.is_dir() and (d / "summary.json").exists()
             ]
             incident_dirs = sorted(incident_dirs)

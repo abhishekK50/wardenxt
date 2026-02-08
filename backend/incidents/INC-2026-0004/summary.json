@@ -1,0 +1,46 @@
+{
+  "incident_id": "INC-2026-0004",
+  "title": "DNS Propagation Failure After Migration Causing Geographic Outages",
+  "severity": "P1",
+  "duration_minutes": 90,
+  "services_affected": [
+    "global-cdn",
+    "api-gateway",
+    "dns-resolver",
+    "load-balancer"
+  ],
+  "root_cause": {
+    "primary": "DNS TTL misconfiguration during migration (5s instead of 300s)",
+    "secondary": "Route53 health check misconfiguration allowed stale IP resolution",
+    "contributing_factors": [
+      "Migration runbook didn't specify TTL preservation",
+      "Engineer used default 5s TTL thinking it enabled faster rollback",
+      "No DNS propagation monitoring across multiple regions"
+    ]
+  },
+  "estimated_cost": "$2,100,000",
+  "users_impacted": "45,000+ failed requests across all regions",
+  "mitigation_steps": [
+    "Identified DNS TTL misconfiguration via dig queries (Completed: 03:30)",
+    "Updated Route53 A records with correct TTL (300s) (Completed: 03:45)",
+    "Forced DNS cache flush on major public resolvers (Completed: 04:00)",
+    "Decommissioned legacy infrastructure to prevent stale IP routing (Completed: 04:00)",
+    "Updated migration runbook with explicit TTL preservation checklist (Planned)",
+    "Implemented DNS propagation monitoring across 15 global locations (Planned)"
+  ],
+  "lessons_learned": [
+    "DNS TTL values are CRITICAL - must be preserved during migrations",
+    "Migration runbooks need explicit DNS validation checklists",
+    "Geographic distribution of failures indicates DNS propagation issues",
+    "DNS monitoring must query multiple public resolvers (8.8.8.8, 1.1.1.1, 208.67.222.222)",
+    "Legacy infrastructure must be kept running until DNS fully propagates"
+  ],
+  "incident_type": "dns_propagation",
+  "start_time": "2026-01-22T18:06:39Z",
+  "end_time": "2026-01-22T19:36:39Z",
+  "detection_time": "2026-01-22T18:08:39Z",
+  "resolution_time": "2026-01-22T19:36:39Z",
+  "business_impact": "HIGH - Major service degradation",
+  "mttr_actual": "1h 30m",
+  "mttr_target": "45m"
+}
