@@ -1,8 +1,8 @@
 # Core Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
@@ -11,12 +11,12 @@ python-multipart==0.0.6
 slowapi==0.1.9
 
 # Gemini AI
-google-generativeai==0.3.2
+google-generativeai>=0.8.0
 
 # Database
-sqlalchemy==2.0.25
-alembic==1.13.1
-aiosqlite==0.19.0
+sqlalchemy>=2.0.30
+alembic>=1.13.0
+aiosqlite>=0.20.0
 # asyncpg==0.29.0  # PostgreSQL async driver - disabled for SQLite
 # psycopg2-binary==2.9.9  # PostgreSQL sync driver - disabled for SQLite
 
@@ -35,16 +35,16 @@ httpx==0.26.0
 
 # Utilities
 python-dotenv==1.0.0
-pyyaml==6.0.1
+pyyaml>=6.0.2
 rich==13.7.0
 psutil==5.9.8
 
 # Testing
-pytest==7.4.4
-pytest-asyncio==0.23.3
-pytest-cov==4.1.0
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
 
 # Development
-black==23.12.1
-ruff==0.1.11
-mypy==1.8.0
+black>=24.0.0
+ruff>=0.5.0
+mypy>=1.10.0
