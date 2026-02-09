@@ -4,7 +4,9 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
+  "regions": [
+    "iad1"
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -27,7 +29,7 @@
   "rewrites": [
     {
       "source": "/api/proxy/:path*",
-      "destination": "https://wardenxt-backend.onrender.com/api/:path*"
+      "destination": "https://wardenxt-backend-production.up.railway.app/api/:path*"
     }
   ]
 }

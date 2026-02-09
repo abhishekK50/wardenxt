@@ -24,7 +24,17 @@
       "Bash(venvScriptspip install psutil==5.9.8)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImVtYWlsIjoiYWRtaW5Ad2FyZGVueHQubG9jYWwiLCJ1c2VyX2lkIjoyLCJyb2xlcyI6WyJhZG1pbiJdLCJleHAiOjE3NzAxMjE3ODUsImlhdCI6MTc3MDAzNTM4NX0.ohj9BDkizjdxj1C5E3hHy55nD6Xctw7gjBPlsFm4SuY\")"
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImVtYWlsIjoiYWRtaW5Ad2FyZGVueHQubG9jYWwiLCJ1c2VyX2lkIjoyLCJyb2xlcyI6WyJhZG1pbiJdLCJleHAiOjE3NzAxMjE3ODUsImlhdCI6MTc3MDAzNTM4NX0.ohj9BDkizjdxj1C5E3hHy55nD6Xctw7gjBPlsFm4SuY\")",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(gh repo view:*)",
+      "Bash(railway:*)",
+      "Bash(npm install:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel:*)",
+      "WebFetch(domain:railway.com)"
     ]
   }
 }

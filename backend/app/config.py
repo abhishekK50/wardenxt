@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Gemini API Configuration
     gemini_api_key: str = Field(..., env="GEMINI_API_KEY")
     gemini_model: str = Field(
-        default="gemini-2.0-flash",
+        default="gemini-3-flash-preview",
         env="GEMINI_MODEL"
     )
     

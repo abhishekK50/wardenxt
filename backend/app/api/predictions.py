@@ -79,7 +79,7 @@ def get_all_incidents(data_loader: DataLoader):
 
 @router.get("/forecast", response_model=PredictionForecast)
 async def get_incident_forecast(
-    time_horizon: str = Query(default="24h", regex="^(24h|48h|72h)$"),
+    time_horizon: str = Query(default="24h", pattern="^(24h|48h|72h)$"),
     data_loader: DataLoader = Depends(get_data_loader)
 ):
     """Get incident predictions for specified time horizon
