@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Gemini API Configuration
     gemini_api_key: str = Field(..., env="GEMINI_API_KEY")
     gemini_model: str = Field(
-        default="gemini-2.0-flash-exp",
+        default="gemini-2.0-flash",
         env="GEMINI_MODEL"
     )
     
@@ -61,11 +61,36 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parse CORS origins from JSON string"""
+        """Parse CORS origins from JSON string or comma-separated list"""
         import json
-        if isinstance(self.cors_origins, str):
-            return json.loads(self.cors_origins)
-        return self.cors_origins
+        
+        if not isinstance(self.cors_origins, str):
+            return self.cors_origins
+            
+        value = self.cors_origins.strip()
+        
+        # Handle potential wrapping quotes from shell/env mismatch
+        if len(value) >= 2 and (
+            (value.startswith("'") and value.endswith("'")) or 
+            (value.startswith('"') and value.endswith('"'))
+        ):
+            # Try to decode if it looks like a JSON list wrapped in quotes
+            # But be careful not to strip quotes from a single JSON string if that were valid
+            # For our use case, we expect a list.
+            try:
+                # Check if the inner content is valid JSON
+                return json.loads(value[1:-1])
+            except json.JSONDecodeError:
+                pass
+                
+        # Try JSON parsing clean
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            # Fallback to comma-separated list
+            # Remove brackets if they exist but JSON failed (e.g. bad quoting inside)
+            clean_value = value.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+            return [origin.strip() for origin in clean_value.split(",") if origin.strip()]
     
     # Feature Flags
     enable_total_recall: bool = Field(default=True, env="ENABLE_TOTAL_RECALL")
